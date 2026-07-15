@@ -17,6 +17,9 @@
     <Compile Include="$(MSBuildThisFileDirectory)EnumerableExtesions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\CompletionEngineSource.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\TextChangeAdapter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlClassificationTagger.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlClassificationTaggerProvider.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlClassificationTypeNames.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlCompletion.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlCompletionCommandHandler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlCompletionHandlerProvider.cs" />

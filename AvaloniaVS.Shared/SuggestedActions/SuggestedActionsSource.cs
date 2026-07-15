@@ -16,28 +16,17 @@ using Microsoft.VisualStudio.Text.Operations;
 
 namespace AvaloniaVS.Shared.SuggestedActions
 {
-    class SuggestedActionsSource : ISuggestedActionsSource
+    internal class SuggestedActionsSource(SuggestedActionsSourceProvider testSuggestedActionsSourceProvider, ITextView textView, ITextBuffer textBuffer,
+        IWpfDifferenceViewerFactoryService diffFactory, IDifferenceBufferFactoryService diffBufferFactory, ITextBufferFactoryService bufferFactory,
+        ITextEditorFactoryService textEditorFactoryService) : ISuggestedActionsSource
     {
-        private readonly SuggestedActionsSourceProvider _factory;
-        private readonly ITextBuffer _textBuffer;
-        private readonly IWpfDifferenceViewerFactoryService _diffFactory;
-        private readonly IDifferenceBufferFactoryService _diffBufferFactory;
-        private readonly ITextBufferFactoryService _bufferFactory;
-        private readonly ITextEditorFactoryService _textEditorFactoryService;
-        private readonly ITextView _textView;
-
-        public SuggestedActionsSource(SuggestedActionsSourceProvider testSuggestedActionsSourceProvider, ITextView textView, ITextBuffer textBuffer,
-            IWpfDifferenceViewerFactoryService diffFactory, IDifferenceBufferFactoryService diffBufferFactory, ITextBufferFactoryService bufferFactory,
-            ITextEditorFactoryService textEditorFactoryService)
-        {
-            _factory = testSuggestedActionsSourceProvider;
-            _textBuffer = textBuffer;
-            _diffFactory = diffFactory;
-            _diffBufferFactory = diffBufferFactory;
-            _bufferFactory = bufferFactory;
-            _textEditorFactoryService = textEditorFactoryService;
-            _textView = textView;
-        }
+        private readonly SuggestedActionsSourceProvider _factory = testSuggestedActionsSourceProvider;
+        private readonly ITextBuffer _textBuffer = textBuffer;
+        private readonly IWpfDifferenceViewerFactoryService _diffFactory = diffFactory;
+        private readonly IDifferenceBufferFactoryService _diffBufferFactory = diffBufferFactory;
+        private readonly ITextBufferFactoryService _bufferFactory = bufferFactory;
+        private readonly ITextEditorFactoryService _textEditorFactoryService = textEditorFactoryService;
+        private readonly ITextView _textView = textView;
 
         public event EventHandler<EventArgs> SuggestedActionsChanged;
 
@@ -70,9 +59,11 @@ namespace AvaloniaVS.Shared.SuggestedActions
                     suggestedAction = new MissingNamespaceSuggestedAction(trackingSpan, _diffFactory, _diffBufferFactory, _bufferFactory, _textEditorFactoryService,
     metadata.CompletionMetadata.InverseNamespace, CompletionEngine.GetNamespaceAliases(extent.Span.Snapshot.TextBuffer.CurrentSnapshot.GetText()), alias);
                 }
-                return new SuggestedActionSet[] { new SuggestedActionSet(new ISuggestedAction[] { suggestedAction }) };
+#pragma warning disable CS0618 // Type or member is obsolete
+                return [new SuggestedActionSet([suggestedAction])];
+#pragma warning restore CS0618 // Type or member is obsolete
             }
-            return Enumerable.Empty<SuggestedActionSet>();
+            return [];
         }
 
         public Task<bool> HasSuggestedActionsAsync(ISuggestedActionCategorySet requestedActionCategories, SnapshotSpan range, CancellationToken cancellationToken)

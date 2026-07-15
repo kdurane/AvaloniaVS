@@ -84,9 +84,9 @@ namespace AvaloniaVS
             var dte = (DTE)await GetServiceAsync(typeof(DTE));
             SolutionService = new SolutionService(dte);
 
-            var shell = await GetServiceAsync(typeof(SVsShell)) as IVsShell;
-            var ans = new AnalyticsService(this.GetMefService<IAvaloniaVSSettings>(), dte, shell);
-            await ans.TrackLaunchAsync();           
+            //var shell = await GetServiceAsync(typeof(SVsShell)) as IVsShell;
+            //var ans = new AnalyticsService(this.GetMefService<IAvaloniaVSSettings>(), dte, shell);
+            //await ans.TrackLaunchAsync();           
 
             Log.Logger.Information("Avalonia Package initialized");
         }

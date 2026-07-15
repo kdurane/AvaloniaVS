@@ -17,14 +17,12 @@ using AvaloniaVS.Models;
 using AvaloniaVS.Services;
 using AvaloniaVS.Shared.Services;
 using EnvDTE;
-using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Threading;
 using Serilog;
-using VSLangProj;
 using Task = System.Threading.Tasks.Task;
 
 namespace AvaloniaVS.Views
@@ -84,18 +82,18 @@ namespace AvaloniaVS.Views
         public static string[] ZoomLevels { get; } = AvaloniaVS.ZoomLevels.Levels;
 
 
-        private static readonly GridLength ZeroStar = new GridLength(0, GridUnitType.Star);
-        private static readonly GridLength OneStar = new GridLength(1, GridUnitType.Star);
+        private static readonly GridLength s_zeroStar = new(0, GridUnitType.Star);
+        private static readonly GridLength s_oneStar = new(1, GridUnitType.Star);
         private readonly Throttle<string> _throttle;
-        private readonly ColumnDefinition _previewCol = new ColumnDefinition { Width = OneStar };
-        private readonly ColumnDefinition _codeCol = new ColumnDefinition { Width = OneStar };
+        private readonly ColumnDefinition _previewCol = new() { Width = s_oneStar };
+        private readonly ColumnDefinition _codeCol = new() { Width = s_oneStar };
         private Project _project;
         private IWpfTextViewHost _editor;
         private string _xamlPath;
         private bool _loadingTargets;
         private bool _isStarted;
         private bool _isPaused;
-        private SemaphoreSlim _startingProcess = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _startingProcess = new(1, 1);
         private bool _disposed;
         private double _scaling = 1;
         private AvaloniaDesignerView _unPausedView;
@@ -609,7 +607,7 @@ namespace AvaloniaVS.Views
 
         private void RebuildMetadata(string assemblyPath, string executablePath)
         {
-            
+
             assemblyPath ??= SelectedTarget?.XamlAssembly;
             var project = SelectedTarget?.Project;
 
@@ -797,8 +795,8 @@ namespace AvaloniaVS.Views
 
             if (View == AvaloniaDesignerView.Split)
             {
-                previewRow.Height = OneStar;
-                codeRow.Height = OneStar;
+                previewRow.Height = s_oneStar;
+                codeRow.Height = s_oneStar;
 
                 if (SplitOrientation == Orientation.Horizontal)
                 {
@@ -819,8 +817,8 @@ namespace AvaloniaVS.Views
             else
             {
                 HorizontalGrid();
-                previewRow.Height = View == AvaloniaDesignerView.Design ? OneStar : ZeroStar;
-                codeRow.Height = View == AvaloniaDesignerView.Source ? OneStar : ZeroStar;
+                previewRow.Height = View == AvaloniaDesignerView.Design ? s_oneStar : s_zeroStar;
+                codeRow.Height = View == AvaloniaDesignerView.Source ? s_oneStar : s_zeroStar;
                 splitter.Visibility = Visibility.Collapsed;
                 SwapPanesButton.Visibility = Visibility.Collapsed;
             }
@@ -909,16 +907,14 @@ namespace AvaloniaVS.Views
 
         private static async Task<string> ReadAllTextAsync(string fileName)
         {
-            using (var reader = File.OpenText(fileName))
-            {
-                return await reader.ReadToEndAsync();
-            }
+            using var reader = File.OpenText(fileName);
+            return await reader.ReadToEndAsync();
         }
 
         private IVsBuildPropertyStorage GetMSBuildPropertyStorage(Project project)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            IVsSolution solution = (IVsSolution)ServiceProvider.GlobalProvider.GetService(typeof(SVsSolution));
+            IVsSolution solution = (IVsSolution)ServiceProvider.GlobalProvider?.GetService(typeof(SVsSolution));
 
             int hr = solution.GetProjectOfUniqueName(project.FullName, out var hierarchy);
             System.Runtime.InteropServices.Marshal.ThrowExceptionForHR(hr);

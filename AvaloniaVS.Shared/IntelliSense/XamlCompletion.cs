@@ -33,7 +33,7 @@ namespace AvaloniaVS.IntelliSense
             DeleteTextOffset = completion.DeleteTextOffset;
             if (completion.Priority < 255)
             {
-                this.AttributeIcons = new Microsoft.VisualStudio.Language.Intellisense.CompletionIcon2[]
+                AttributeIcons = new Microsoft.VisualStudio.Language.Intellisense.CompletionIcon2[]
                 {
                     new (KnownMonikers.OverlayProtected,"",""),
                 };

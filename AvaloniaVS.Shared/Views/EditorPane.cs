@@ -40,12 +40,12 @@ namespace AvaloniaVS.Shared.Views
         private const int WM_KEYFIRST = 0x0100;
         private const int WM_KEYLAST = 0x0109;
 
-        private TextEditorHost _textEditorHost;
+        private readonly TextEditorHost _textEditorHost;
         private IVsFilterKeys2 _filterKeys;
         private AvaloniaDesigner _content;
         private bool _isInitialized;
         private bool _hasCreatedCodeWindow;
-        private Project _project;
+        private readonly Project _project;
         private DTEEvents _dteEvents;
         private BuildEvents _buildEvents;
         private bool _isPaused;
@@ -106,10 +106,10 @@ namespace AvaloniaVS.Shared.Views
                 }
 
                 return _filterKeys.TranslateAcceleratorEx(
-                    new[] { oleMsg },
+                    [oleMsg],
                     (uint)__VSTRANSACCELEXFLAGS.VSTAEXF_UseTextEditorKBScope,
                     0,
-                    Array.Empty<Guid>(),
+                    [],
                     out var _,
                     out var _,
                     out var _,

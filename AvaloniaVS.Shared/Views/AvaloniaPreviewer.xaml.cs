@@ -213,7 +213,7 @@ namespace AvaloniaVS.Views
             }
         }
 
-        private void Preview_MouseMove(object sender, MouseEventArgs e)
+        private async void Preview_MouseMove(object sender, MouseEventArgs e)
         {
             var p = e.GetPosition(preview);
             var scaling = GetScaling();
@@ -226,7 +226,7 @@ namespace AvaloniaVS.Views
             });
         }
 
-        private void Preview_MouseDown(object sender, MouseButtonEventArgs e)
+        private async void Preview_MouseDown(object sender, MouseButtonEventArgs e)
         {
             var p = e.GetPosition(preview);
             var scaling = GetScaling();
@@ -240,7 +240,7 @@ namespace AvaloniaVS.Views
             });
         }
 
-        private void Preview_MouseUp(object sender, MouseButtonEventArgs e)
+        private async void Preview_MouseUp(object sender, MouseButtonEventArgs e)
         {
             var p = e.GetPosition(preview);
             var scaling = GetScaling();
@@ -256,15 +256,14 @@ namespace AvaloniaVS.Views
         private static T FindParent<T>(DependencyObject child) where T : DependencyObject
         {
             //get parent item
-            DependencyObject parentObject = VisualTreeHelper.GetParent(child);
+            var parentObject = VisualTreeHelper.GetParent(child);
 
             //we've reached the end of the tree
             if (parentObject == null)
                 return null;
 
             //check if the parent matches the type we're looking for
-            T parent = parentObject as T;
-            if (parent != null)
+            if (parentObject is T parent)
                 return parent;
             else
                 return FindParent<T>(parentObject);
@@ -324,12 +323,12 @@ namespace AvaloniaVS.Views
                 result.Add(InputModifiers.MiddleMouseButton);
             }
 
-            return result.ToArray();
+            return [.. result];
         }
 
-        ScrollBar? _horizontalScroll;
-        ScrollBar _verticalScroll;
-        Size? _lastSize = default;
+        private ScrollBar _horizontalScroll;
+        private ScrollBar _verticalScroll;
+        private Size? _lastSize = default;
         public Size GetViewportSize(int padding)
         {
             if (_lastSize is null)
@@ -338,20 +337,14 @@ namespace AvaloniaVS.Views
                 var width = previewScroller.ActualWidth;
                 if (previewScroller.ComputedHorizontalScrollBarVisibility == Visibility.Visible)
                 {
-                    if (_horizontalScroll is null)
-                    {
-                        _horizontalScroll = previewScroller.FindDescendants<ScrollBar>()
+                    _horizontalScroll ??= previewScroller.FindDescendants<ScrollBar>()
                             .First(b => b.Orientation == Orientation.Horizontal);
-                    }
                     height -= _horizontalScroll.Height;
                 }
                 if (previewScroller.ComputedVerticalScrollBarVisibility == Visibility.Visible)
                 {
-                    if (_verticalScroll == null)
-                    {
-                        _verticalScroll = previewScroller.FindDescendants<ScrollBar>()
+                    _verticalScroll ??= previewScroller.FindDescendants<ScrollBar>()
                             .First(b => b.Orientation == Orientation.Vertical);
-                    }
                     width -= _verticalScroll.Width;
                 }
                 _lastSize = new(width - padding * 2, height - padding * 2);

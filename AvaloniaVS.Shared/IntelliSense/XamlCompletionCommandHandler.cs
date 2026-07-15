@@ -490,8 +490,9 @@ namespace AvaloniaVS.IntelliSense
             }
         }
 
-        private async System.Threading.Tasks.Task GenerateEventHandlerAsync(string controlType, string eventName, string generatedMethodName)
+        private async Task GenerateEventHandlerAsync(string controlType, string eventName, string generatedMethodName)
         {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             var currentScheduler = TaskScheduler.FromCurrentSynchronizationContext();
             try
             {
