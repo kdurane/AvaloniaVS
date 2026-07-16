@@ -15,7 +15,7 @@ namespace AvaloniaVS.Shared.IntelliSense
     internal sealed class ColorAdornmentTagger : ITagger<IntraTextAdornmentTag>, IDisposable
     {
         private static readonly Regex s_colorRegex = new(
-            @"#(?<hex>[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})" +
+            @"#(?<hex>[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6})" +
             @"|(?<attrName>[A-Za-z_][\w:.]*)=""(?<named>[A-Za-z]+)""",
             RegexOptions.Compiled);
 
@@ -117,10 +117,7 @@ namespace AvaloniaVS.Shared.IntelliSense
         {
             try
             {
-                var argb = hex.Length == 8
-                    ? "#" + hex
-                    : "#FF" + hex; // assume opaque if no alpha given
-
+                var argb = hex.Length == 8 ? "#" + hex : "#FF" + hex;
                 var converted = ColorConverter.ConvertFromString(argb);
                 if (converted is Color c)
                 {

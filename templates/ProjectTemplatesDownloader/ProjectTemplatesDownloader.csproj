@@ -10,8 +10,4 @@
     <PackageDownload Include="$(AvaloniaTemplatesPackageName)" Version="[$(AvaloniaTemplatesPackageVersion)]" />
   </ItemGroup>
   
-  <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.1.0" />
-  </ItemGroup>
-  
 </Project>
