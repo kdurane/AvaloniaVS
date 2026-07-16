@@ -12,7 +12,7 @@ namespace AvaloniaVS.Shared.IntelliSense
     {
         private static readonly Regex s_xamlRegex = new(
             @"(?<xamlAttrName>x:Class|x:DataType)=""(?<xamlType>(?:[A-Za-z_][\w]*:)?[A-Za-z_][\w.]*)""" +
-            @"|(?<control><(?<type>[A-Za-z_][\w]*:[A-Za-z_][\w]*|[A-Z][\w]*))" +
+            @"|(?<control><\/?(?<type>[A-Za-z_][\w]*:[A-Za-z_][\w]*|[A-Z][\w]*))(?<typeProperty>\.[A-Za-z_][\w]*)?" +
             @"|(?<property>[A-Za-z_][\w]*\.[A-Za-z_][\w]*)(?=\s*=)" +
             @"|(?<attribute>[A-Za-z_][\w:]*)(?=\s*=)" +
             @"|\{(?<extension>Binding|StaticResource|DynamicResource)\b",
@@ -76,6 +76,10 @@ namespace AvaloniaVS.Shared.IntelliSense
                 if (match.Groups["type"].Success)
                 {
                     tags.Add(MakeTag(snapshot, match.Groups["type"], _type));
+                    if (match.Groups["typeProperty"].Success)
+                    {
+                        tags.Add(MakeTag(snapshot, match.Groups["typeProperty"], _attachedProperty));
+                    }
                 }
                 else if (match.Groups["xamlAttrName"].Success)
                 {

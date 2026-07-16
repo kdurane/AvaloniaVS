@@ -72,15 +72,15 @@
     </ItemGroup>
     <Error Text="No template files found." Condition="@(_TemplatePackage-&gt;Count()) == 0" />
     <Message Text="Template nuget packages found: @(_TemplatePackage)" Importance="low" />
-  <!-- don't modify the following, the pkgdef file uses the path below -->
-  <ItemGroup>
+    <!-- don't modify the following, the pkgdef file uses the path below -->
+    <ItemGroup>
       <VSIXSourceItem Include="@(_TemplatePackage)">
         <VSIXSubPath>ProjectTemplates\</VSIXSubPath>
       </VSIXSourceItem>
     </ItemGroup>
   </Target>
   <ItemGroup>
-    <PackageReference Include="Avalonia.Remote.Protocol" Version="11.1.0" />
+    <PackageReference Include="Avalonia.Remote.Protocol" Version="12.1.0" />
     <PackageReference Include="Microsoft.CodeAnalysis">
       <Version>4.0.1</Version>
     </PackageReference>
