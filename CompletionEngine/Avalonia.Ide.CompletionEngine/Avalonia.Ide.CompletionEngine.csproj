@@ -12,7 +12,8 @@
     Must use oldest System.Text.Json version here as this can't be higher than what VS ships with
     or intellisense will fail to load - see GH#298
     -->
-    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="System.Text.Encodings.Web" Version="6.0.0" />
+    <PackageReference Include="System.Text.Json" Version="6.0.10" />
     <PackageReference Include="System.Memory" Version="4.6.3" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
   </ItemGroup>
 

@@ -15,6 +15,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)Converters\NotNullOrEmptyToVisibilityConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Constants.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)EnumerableExtesions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\ColorAdornmentTagger.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\ColorAdornmentTaggerProvider.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\CompletionEngineSource.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\TextChangeAdapter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlClassificationTagger.cs" />
