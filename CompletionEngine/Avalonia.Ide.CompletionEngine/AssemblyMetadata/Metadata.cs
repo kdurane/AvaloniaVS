@@ -6,8 +6,8 @@ namespace Avalonia.Ide.CompletionEngine;
 
 public class Metadata
 {
-    readonly Dictionary<string, Dictionary<string, MetadataType>> _namespaces = new();
-    readonly Dictionary<string, string> _inverseNamespace = new();
+    private readonly Dictionary<string, Dictionary<string, MetadataType>> _namespaces = [];
+    private readonly Dictionary<string, string> _inverseNamespace = [];
 
     public IReadOnlyDictionary<string, Dictionary<string, MetadataType>> Namespaces => _namespaces;
     public IReadOnlyDictionary<string, string> InverseNamespace => _inverseNamespace;
@@ -42,7 +42,7 @@ public record MetadataType(string Name)
     public bool HasHintValues { get; set; }
     public string[]? HintValues { get; set; }
 
-    public string[] PseudoClasses { get; set; } = Array.Empty<string>();
+    public string[] PseudoClasses { get; set; } = [];
     public bool HasPseudoClasses { get; set; }
 
     //assembly, type, property
@@ -50,8 +50,8 @@ public record MetadataType(string Name)
     //assembly, type, property
     public Func<string?, MetadataType, MetadataProperty?, IEnumerable<string>>? XamlContextHintValuesFunc { get; set; }
     public string FullName { get; set; } = "";
-    public List<MetadataProperty> Properties { get; set; } = new List<MetadataProperty>();
-    public List<MetadataEvent> Events { get; set; } = new List<MetadataEvent>();
+    public List<MetadataProperty> Properties { get; set; } = [];
+    public List<MetadataEvent> Events { get; set; } = [];
     public bool HasAttachedProperties { get; set; }
     public bool HasAttachedEvents { get; set; }
     public bool HasStaticGetProperties { get; set; }
@@ -64,7 +64,7 @@ public record MetadataType(string Name)
     public string? AssemblyQualifiedName { get; set; }
     public bool IsNullable { get; init; }
     public MetadataType? UnderlyingType { get; init; }
-    public List<(MetadataType Type, string Name)> TemplateParts { get; set; } = new List<(MetadataType Type, string Name)>();
+    public List<(MetadataType Type, string Name)> TemplateParts { get; set; } = [];
     public bool IsAbstract { get; internal set; } = false;
 }
 

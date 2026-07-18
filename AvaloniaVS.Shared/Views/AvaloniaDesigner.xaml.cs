@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -8,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Avalonia.Ide.CompletionEngine;
@@ -39,7 +41,7 @@ namespace AvaloniaVS.Views
     /// </summary>
     internal partial class AvaloniaDesigner : UserControl, IDisposable
     {
-        private static readonly DependencyPropertyKey TargetsPropertyKey =
+        private static readonly DependencyPropertyKey s_targetsPropertyKey =
             DependencyProperty.RegisterReadOnly(
                 nameof(Targets),
                 typeof(IReadOnlyList<DesignerRunTarget>),
@@ -68,7 +70,7 @@ namespace AvaloniaVS.Views
                 new PropertyMetadata(AvaloniaDesignerView.Split, HandleViewChanged));
 
         public static readonly DependencyProperty TargetsProperty =
-            TargetsPropertyKey.DependencyProperty;
+            s_targetsPropertyKey.DependencyProperty;
 
         public static readonly DependencyProperty ZoomLevelProperty =
             DependencyProperty.Register(
@@ -165,7 +167,7 @@ namespace AvaloniaVS.Views
         public IReadOnlyList<DesignerRunTarget> Targets
         {
             get => (IReadOnlyList<DesignerRunTarget>)GetValue(TargetsProperty);
-            private set => SetValue(TargetsPropertyKey, value);
+            private set => SetValue(s_targetsPropertyKey, value);
         }
 
         /// <summary>
@@ -424,7 +426,7 @@ namespace AvaloniaVS.Views
 
                 var oldSelectedTarget = SelectedTarget;
 
-                Targets = (from project in projects
+                Targets = [.. (from project in projects
                            where IsValidTarget(project)
                            orderby project.Project != project, !project.IsStartupProject, project.Name
                            from output in project.Outputs
@@ -437,7 +439,7 @@ namespace AvaloniaVS.Views
                                HostApp = output.HostApp,
                                Project = project.Project,
                                IsNetFramework = output.IsNetFramework
-                           }).ToList();
+                           })];
 
                 SelectedTarget = Targets.FirstOrDefault(t => t.Name == oldSelectedTarget?.Name) ?? Targets.FirstOrDefault();
             }
@@ -621,7 +623,7 @@ namespace AvaloniaVS.Views
 
                 if (metadata.CompletionMetadata == null || metadata.NeedInvalidation)
                 {
-                    Func<IAssemblyProvider> assemblyProviderFunc = () =>
+                    IAssemblyProvider assemblyProviderFunc()
                     {
                         if (VsProjectAssembliesProvider.TryCreate(project, assemblyPath) is { } vsProjectAsmProvider)
                         {
@@ -633,52 +635,34 @@ namespace AvaloniaVS.Views
                             return new ReferenceFileAssemblyProvider(referencesPath, assemblyPath);
                         }
                         return new DepsJsonFileAssemblyProvider(executablePath, assemblyPath);
-                    };
+                    }
 
                     CreateCompletionMetadataAsync(executablePath, assemblyProviderFunc, metadata).FireAndForget();
                 }
             }
         }
 
-        private static Dictionary<string, Task<Metadata>> _metadataCache;
-        private static readonly MetadataReader _metadataReader = new(new DnlibMetadataProvider());
+        private static readonly MetadataReader s_metadataReader = new(new DnlibMetadataProvider());
+        private static ConcurrentDictionary<string, Task<Metadata>> s_metadataCache;
+        private static bool s_buildEventsSubscribed;
+        private static readonly object s_initLock = new();
 
-        private static async Task CreateCompletionMetadataAsync(
-            string executablePath,
-            Func<IAssemblyProvider> assemblyProviderFunc,
-            XamlBufferMetadata target)
+        private static async Task CreateCompletionMetadataAsync(string executablePath, Func<IAssemblyProvider> assemblyProviderFunc, XamlBufferMetadata target)
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-            if (_metadataCache == null)
-            {
-                _metadataCache = new Dictionary<string, Task<Metadata>>();
-                var dte = (DTE)Package.GetGlobalService(typeof(DTE));
-
-                dte.Events.BuildEvents.OnBuildBegin += (s, e) => _metadataCache.Clear();
-            }
-
-            Log.Logger.Information("Started AvaloniaDesigner.CreateCompletionMetadataAsync() for {ExecutablePath}", executablePath);
+            EnsureBuildEventsSubscribed();
 
             try
             {
                 var sw = Stopwatch.StartNew();
 
-                Task<Metadata> metadataLoad;
-
-                if (!_metadataCache.TryGetValue(executablePath, out metadataLoad))
-                {
-                    var assemblyProvider = assemblyProviderFunc();
-                    metadataLoad = Task.Run(() => _metadataReader.GetForTargetAssembly(assemblyProvider));
-                    _metadataCache[executablePath] = metadataLoad;
-                }
+                var metadataLoad = s_metadataCache.GetOrAdd(
+                    executablePath,
+                    path => LoadMetadataAsync(path, assemblyProviderFunc));
 
                 target.CompletionMetadata = await metadataLoad;
-
                 target.NeedInvalidation = false;
 
                 sw.Stop();
-
                 Log.Logger.Verbose("Finished AvaloniaDesigner.CreateCompletionMetadataAsync() took {Time} for {ExecutablePath}", sw.Elapsed, executablePath);
             }
             catch (Exception ex)
@@ -690,6 +674,42 @@ namespace AvaloniaVS.Views
                 Log.Logger.Verbose("Finished AvaloniaDesigner.CreateCompletionMetadataAsync()");
             }
         }
+
+        private static async Task<Metadata> LoadMetadataAsync(string executablePath, Func<IAssemblyProvider> assemblyProviderFunc)
+        {
+            // TryCreate walks VSProject.References, which requires the UI thread.
+            // Keep this hop, but only pay for it once per cache miss, and hop straight
+            // back off before the actual (slower) metadata read.
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            var assemblyProvider = assemblyProviderFunc();
+            await TaskScheduler.Default;
+
+            return s_metadataReader.GetForTargetAssembly(assemblyProvider);
+        }
+
+        private static void EnsureBuildEventsSubscribed()
+        {
+            if (s_buildEventsSubscribed)
+                return;
+
+            lock (s_initLock)
+            {
+                if (s_buildEventsSubscribed)
+                    return;
+
+                s_metadataCache = new ConcurrentDictionary<string, Task<Metadata>>();
+
+                ThreadHelper.JoinableTaskFactory.Run(async () =>
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    var dte = (DTE)Package.GetGlobalService(typeof(DTE));
+                    dte.Events.BuildEvents.OnBuildBegin += (s, e) => s_metadataCache.Clear();
+                });
+
+                s_buildEventsSubscribed = true;
+            }
+        }
+
 
         private async void ErrorChanged(object sender, EventArgs e)
         {

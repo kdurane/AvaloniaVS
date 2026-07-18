@@ -21,21 +21,21 @@ public enum CompletionKind
     /// Properties from DataContexts (view models), specifically this is for VS
     /// to use a different icon from normal properties
     /// </summary>
-    DataProperty = 0x200,
+    DataProperty = 0x400,
 
     /// <summary>
     /// Classes when listed from TargetType or Selector, specfically for VS to use
     /// a different icon from <see cref="Class"/> used in tag names
     /// </summary>
-    TargetTypeClass = 0x400,
+    TargetTypeClass = 0x800,
 
     /// <summary>
     /// xmlns list in visual studio (uses enum icon instead of namespace icon)
     /// </summary>
-    VS_XMLNS = 0x800,
+    VS_XMLNS = 0x1000,
 
-    Selector = 0x1000,
-    Name = 0x2000,
+    Selector = 0x2000,
+    Name = 0x4000,
 }
 
 public record Completion(string DisplayText,

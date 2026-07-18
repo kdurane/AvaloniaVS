@@ -25,9 +25,9 @@ namespace AvaloniaVS.Services
         private IOleServiceProvider _oleServiceProvider;
         private ServiceProvider _serviceProvider;
 
-        private const string csExt = ".cs";
-        private const string fsExt = ".fs";
-        private const string vbExt = ".vb";
+        private const string CsExt = ".cs";
+        private const string FsExt = ".fs";
+        private const string VbExt = ".vb";
         /// <summary>
         /// Initializes a new instance of the <see cref="EditorFactory"/> class.
         /// </summary>
@@ -55,7 +55,7 @@ namespace AvaloniaVS.Services
                 return VSConstants.S_OK;
             }
 
-            if(rguidLogicalView == VSConstants.LOGVIEWID_Code)
+            if (rguidLogicalView == VSConstants.LOGVIEWID_Code)
             {
                 pbstrPhysicalView = "Code";
                 return VSConstants.S_OK;
@@ -97,16 +97,21 @@ namespace AvaloniaVS.Services
                     return VSConstants.E_INVALIDARG;
                 else
                 {
-                    if (GetExtensionObject(pvHier,itemid) is ProjectItem pi)
+                    if (TryFindNestedCodeFile(pvHier, itemid, out var codeFilePath))
                     {
-                        var codeFile = FindCodeFileForXaml(pi, out var codeProjectItem);
-                        if (codeFile)
-                        {
-                            var wnd = codeProjectItem.Open(EnvDTE.Constants.vsViewKindTextView);
-                            wnd.Activate();
-                            return VSConstants.S_OK;
-                        }
+                        VsShellUtilities.OpenDocument(_serviceProvider, codeFilePath);
+                        return VSConstants.S_OK;
                     }
+                    //if (GetExtensionObject(pvHier, itemid) is ProjectItem pi)
+                    //{
+                    //    var codeFile = FindCodeFileForXaml(pi, out var codeProjectItem);
+                    //    if (codeFile)
+                    //    {
+                    //        var wnd = codeProjectItem.Open(EnvDTE.Constants.vsViewKindTextView);
+                    //        wnd.Activate();
+                    //        return VSConstants.S_OK;
+                    //    }
+                    //}
                 }
                 pszPhysicalView = null;
             }
@@ -162,7 +167,42 @@ namespace AvaloniaVS.Services
             Log.Logger.Verbose("Finished EditorFactory.CreateEditorInstance({Filename})", pszMkDocument);
             return VSConstants.S_OK;
         }
-                
+
+        private bool TryFindNestedCodeFile(IVsHierarchy hierarchy, uint itemId, out string codeFilePath)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            codeFilePath = null;
+
+            if (ErrorHandler.Failed(hierarchy.GetProperty(itemId, (int)__VSHPROPID.VSHPROPID_FirstChild, out var childObj)))
+            {
+                return false;
+            }
+
+            var childId = (uint)(int)(childObj is int i ? i : (int)(uint)childObj);
+
+            while (childId != VSConstants.VSITEMID_NIL)
+            {
+                if (ErrorHandler.Succeeded(hierarchy.GetProperty(childId, (int)__VSHPROPID.VSHPROPID_Name, out var nameObj))
+                    && nameObj is string name
+                    && IsCodeFile(name)
+                    && hierarchy is IVsProject project
+                    && ErrorHandler.Succeeded(project.GetMkDocument(childId, out var path)))
+                {
+                    codeFilePath = path;
+                    return true;
+                }
+
+                if (ErrorHandler.Failed(hierarchy.GetProperty(childId, (int)__VSHPROPID.VSHPROPID_NextSibling, out var nextObj)))
+                {
+                    break;
+                }
+
+                childId = (uint)(int)(nextObj is int ni ? ni : (int)(uint)nextObj);
+            }
+
+            return false;
+        }
+
         /// <inheritdoc/>
         public int Close() => VSConstants.S_OK;
 
@@ -325,9 +365,9 @@ namespace AvaloniaVS.Services
 
         private bool IsCodeFile(string name)
         {
-            if (name.EndsWith(csExt, StringComparison.OrdinalIgnoreCase) ||
-                name.EndsWith(fsExt, StringComparison.OrdinalIgnoreCase) ||
-                name.EndsWith(vbExt, StringComparison.OrdinalIgnoreCase))
+            if (name.EndsWith(CsExt, StringComparison.OrdinalIgnoreCase) ||
+                name.EndsWith(FsExt, StringComparison.OrdinalIgnoreCase) ||
+                name.EndsWith(VbExt, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

@@ -23,7 +23,7 @@
         <conv:NotNullOrEmptyToVisibilityConverter x:Key="NotNullOrEmpty"/>
     </UserControl.Resources>
 
-    <DockPanel>
+    <DockPanel Margin="10,0,0,0">
         <TextBlock Name="pausedMessage"
                    DockPanel.Dock="Top"
                    Background="{DynamicResource VsBrush.InfoBackground}"

@@ -391,11 +391,11 @@ namespace AvaloniaVS.Services
 
             await SendAsync(new ClientSupportedPixelFormatsMessage
             {
-                Formats = new[]
-                {
+                Formats =
+                [
                     Avalonia.Remote.Protocol.Viewport.PixelFormat.Bgra8888,
                     Avalonia.Remote.Protocol.Viewport.PixelFormat.Rgba8888,
-                }
+                ]
             });
 
             await SetScalingAsync(_scaling);
@@ -541,17 +541,13 @@ namespace AvaloniaVS.Services
 
         private System.Windows.Media.PixelFormat ToWpf(Avalonia.Remote.Protocol.Viewport.PixelFormat format)
         {
-            switch (format)
+            return format switch
             {
-                case Avalonia.Remote.Protocol.Viewport.PixelFormat.Bgra8888:
-                    return PixelFormats.Bgra32;
-                case Avalonia.Remote.Protocol.Viewport.PixelFormat.Rgb565:
-                    return PixelFormats.Bgr565;
-                case Avalonia.Remote.Protocol.Viewport.PixelFormat.Rgba8888:
-                    return PixelFormats.Pbgra32;
-                default:
-                    throw new NotSupportedException("Unsupported pixel format.");
-            }
+                Avalonia.Remote.Protocol.Viewport.PixelFormat.Bgra8888 => PixelFormats.Bgra32,
+                Avalonia.Remote.Protocol.Viewport.PixelFormat.Rgb565 => PixelFormats.Bgr565,
+                Avalonia.Remote.Protocol.Viewport.PixelFormat.Rgba8888 => PixelFormats.Pbgra32,
+                _ => throw new NotSupportedException("Unsupported pixel format."),
+            };
         }
     }
 }

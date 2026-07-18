@@ -339,6 +339,7 @@ public class CompletionEngine
                     .Select(v => new Completion(v, v + attributeSuffix, v, CompletionKind.Event, v.Length + attributeOffset)));
 
                 var targetType = Helper.LookupType(state.TagName);
+
                 if (targetType is not null)
                 {
                     completions.AddRange(

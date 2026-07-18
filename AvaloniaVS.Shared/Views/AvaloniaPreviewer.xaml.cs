@@ -347,11 +347,15 @@ namespace AvaloniaVS.Views
                             .First(b => b.Orientation == Orientation.Vertical);
                     width -= _verticalScroll.Width;
                 }
+
+                var clampedWidth = Math.Max(0, width - padding * 2);
+                var clampedHeight = Math.Max(0, height - padding * 2);
+
                 _lastSize = new(width - padding * 2, height - padding * 2);
             }
             return _lastSize.Value;
         }
 
-
+        
     }
 }

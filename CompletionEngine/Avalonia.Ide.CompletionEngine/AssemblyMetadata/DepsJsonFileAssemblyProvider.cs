@@ -22,7 +22,7 @@ namespace Avalonia.Ide.CompletionEngine.AssemblyMetadata
         {
             if (Path.GetDirectoryName(path) is not { } directory)
             {
-                return Array.Empty<string>();
+                return [];
             }
 
             var depsPath = Path.Combine(directory,
