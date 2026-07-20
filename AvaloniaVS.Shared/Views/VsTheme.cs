@@ -9,8 +9,8 @@ namespace AvaloniaVS.Views
 {
     public static class VsTheme
     {
-        private static Dictionary<UIElement, bool> _isUsingVsTheme = new Dictionary<UIElement, bool>();
-        private static Dictionary<UIElement, object> _originalBackgrounds = new Dictionary<UIElement, object>();
+        private static Dictionary<UIElement, bool> s_isUsingVsTheme = [];
+        private static Dictionary<UIElement, object> s_originalBackgrounds = [];
 
         public static DependencyProperty UseVsThemeProperty = DependencyProperty.RegisterAttached("UseVsTheme", typeof(bool), typeof(VsTheme), new PropertyMetadata(false, UseVsThemePropertyChanged));
 
@@ -23,9 +23,9 @@ namespace AvaloniaVS.Views
         {
             if (value)
             {
-                if (!_originalBackgrounds.ContainsKey(element) && element is Control c)
+                if (!s_originalBackgrounds.ContainsKey(element) && element is Control c)
                 {
-                    _originalBackgrounds[element] = c.Background;
+                    s_originalBackgrounds[element] = c.Background;
                 }
 
                 ((FrameworkElement)element).ShouldBeThemed();
@@ -35,12 +35,12 @@ namespace AvaloniaVS.Views
                 ((FrameworkElement)element).ShouldNotBeThemed();
             }
 
-            _isUsingVsTheme[element] = value;
+            s_isUsingVsTheme[element] = value;
         }
 
         public static bool GetUseVsTheme(UIElement element)
         {
-            return _isUsingVsTheme.TryGetValue(element, out bool value) && value;
+            return s_isUsingVsTheme.TryGetValue(element, out bool value) && value;
         }
 
         private static ResourceDictionary BuildThemeResources()
@@ -114,7 +114,7 @@ namespace AvaloniaVS.Views
             {
                 if (control.Resources == ThemeResources)
                 {
-                    control.Resources = new ResourceDictionary();
+                    control.Resources = [];
                 }
                 else
                 {
@@ -125,7 +125,7 @@ namespace AvaloniaVS.Views
             //If we're themed now and we're something with a background property, reset it
             if (GetUseVsTheme(control) && control is Control c)
             {
-                if (_originalBackgrounds.TryGetValue(control, out object background))
+                if (s_originalBackgrounds.TryGetValue(control, out object background))
                 {
                     c.SetValue(Control.BackgroundProperty, background);
                 }

@@ -10,27 +10,18 @@ using Serilog;
 
 namespace AvaloniaVS.IntelliSense
 {
-    internal class XamlCompletionSource : ICompletionSource
+    internal class XamlCompletionSource(ITextBuffer textBuffer, CompletionEngineSource completionEngineSource) : ICompletionSource
     {
-        private readonly ITextBuffer _buffer;
-        private readonly CompletionEngineSource _engine;
-
-        public XamlCompletionSource(ITextBuffer textBuffer, CompletionEngineSource completionEngineSource)
-        {
-            _buffer = textBuffer;
-            _engine = completionEngineSource;
-        }
-
         public void AugmentCompletionSession(ICompletionSession session, IList<CompletionSet> completionSets)
         {
-            if (_buffer.Properties.TryGetProperty<XamlBufferMetadata>(typeof(XamlBufferMetadata), out var metadata) &&
+            if (textBuffer.Properties.TryGetProperty<XamlBufferMetadata>(typeof(XamlBufferMetadata), out var metadata) &&
                 metadata.CompletionMetadata != null)
             {
                 var sw = Stopwatch.StartNew();
                 var pos = session.TextView.Caret.Position.BufferPosition;
                 var text = pos.Snapshot.GetText();
-                _buffer.Properties.TryGetProperty("AssemblyName", out string assemblyName);
-                var completions = _engine.CompletionEngine.GetCompletions(metadata.CompletionMetadata, text, pos, assemblyName);
+                textBuffer.Properties.TryGetProperty("AssemblyName", out string assemblyName);
+                var completions = completionEngineSource.CompletionEngine.GetCompletions(metadata.CompletionMetadata, text, pos, assemblyName);
 
                 if (completions?.Completions.Count > 0)
                 {

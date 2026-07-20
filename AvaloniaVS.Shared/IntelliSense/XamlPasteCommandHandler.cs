@@ -139,7 +139,7 @@ namespace AvaloniaVS.IntelliSense
                 var sb = new StringBuilder();
 
                 Index index = default;
-                Dictionary<string, string> aliasesToAdd = new();
+                Dictionary<string, string> aliasesToAdd = [];
                 var aliasFounded = false;
                 foreach (var si in selectorsInfo)
                 {

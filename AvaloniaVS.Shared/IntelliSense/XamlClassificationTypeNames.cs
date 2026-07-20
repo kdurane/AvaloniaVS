@@ -8,7 +8,7 @@ namespace AvaloniaVS.Shared.IntelliSense
     internal static class XamlClassificationTypeNames
     {
         public const string MarkupExtension = "Xaml.MarkupExtension";
-        public const string ValueText = "Xaml.ValueText";
+        public const string NamespacePrefix = "Xaml.NamespacePrefix";
     }
 
     internal static class XamlClassificationTypeDefinitions
@@ -16,12 +16,11 @@ namespace AvaloniaVS.Shared.IntelliSense
 #pragma warning disable CS0649
         [Export(typeof(ClassificationTypeDefinition))]
         [Name(XamlClassificationTypeNames.MarkupExtension)]
-        internal static ClassificationTypeDefinition MarkupExtensionDefinition;
-
+        internal static ClassificationTypeDefinition _markupExtensionDefinition;
 
         [Export(typeof(ClassificationTypeDefinition))]
-        [Name(XamlClassificationTypeNames.ValueText)]
-        internal static ClassificationTypeDefinition ValueTextDefinition;
+        [Name(XamlClassificationTypeNames.NamespacePrefix)]
+        internal static ClassificationTypeDefinition _namespacePrefixDefinition;
 #pragma warning restore CS0649
     }
 
@@ -40,16 +39,16 @@ namespace AvaloniaVS.Shared.IntelliSense
     }
 
     [Export(typeof(EditorFormatDefinition))]
-    [ClassificationType(ClassificationTypeNames = XamlClassificationTypeNames.ValueText)]
-    [Name(XamlClassificationTypeNames.ValueText)]
+    [ClassificationType(ClassificationTypeNames = XamlClassificationTypeNames.NamespacePrefix)]
+    [Name(XamlClassificationTypeNames.NamespacePrefix)]
     [UserVisible(true)]
     [Order(After = Priority.High)]
-    internal sealed class XamlValueTextFormat : ClassificationFormatDefinition
+    internal sealed class XamlNamespacePrefixFormat : ClassificationFormatDefinition
     {
-        public XamlValueTextFormat()
+        public XamlNamespacePrefixFormat()
         {
-            DisplayName = "XAML Value Text";
-            ForegroundColor = Color.FromRgb(0xFF, 0xFF, 0xFF);
+            DisplayName = "XAML Namespace Prefix";
+            ForegroundColor = Color.FromRgb(0x4E, 0xC9, 0xB0);
         }
     }
 }

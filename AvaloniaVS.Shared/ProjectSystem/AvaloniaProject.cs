@@ -1,8 +1,8 @@
-﻿using Microsoft.VisualStudio.ProjectSystem;
+﻿using System.ComponentModel.Composition;
+using Microsoft.VisualStudio.ProjectSystem;
 using Microsoft.VisualStudio.Shell;
-using System.ComponentModel.Composition;
-using IAsyncServiceProvider = Microsoft.VisualStudio.Shell.IAsyncServiceProvider;
 using Microsoft.VisualStudio.Shell.Interop;
+using IAsyncServiceProvider = Microsoft.VisualStudio.Shell.IAsyncServiceProvider;
 using Task = System.Threading.Tasks.Task;
 
 namespace AvaloniaVS.ProjectSystem;
@@ -11,11 +11,11 @@ namespace AvaloniaVS.ProjectSystem;
 [AppliesTo(Constants.AvaloniaCapability)]
 internal class AvaloniaProject : IProjectDynamicLoadComponent
 {
-    private IAsyncServiceProvider asyncServiceProvider;
+    private IAsyncServiceProvider _asyncServiceProvider;
 
     public async Task LoadAsync()
     {
-        if (asyncServiceProvider is null)
+        if (_asyncServiceProvider is null)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             if (ServiceProvider.GlobalProvider.GetService(typeof(IVsShell)) is IVsShell shell)
@@ -25,7 +25,7 @@ internal class AvaloniaProject : IProjectDynamicLoadComponent
                 {
                     shell.LoadPackage(Constants.PackageGuid, out vsPackage);
                 }
-                asyncServiceProvider = (IAsyncServiceProvider)vsPackage;
+                _asyncServiceProvider = (IAsyncServiceProvider)vsPackage;
             }
         }
     }

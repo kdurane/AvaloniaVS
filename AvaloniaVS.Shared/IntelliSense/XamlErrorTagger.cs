@@ -81,9 +81,9 @@ namespace AvaloniaVS.IntelliSense
 
             if (result is not null)
             {
-                return new[] { result };
+                return [result];
             }
-            return Array.Empty<ITagSpan<IErrorTag>>();
+            return [];
         }
 
         IDisposable ITableDataSource.Subscribe(ITableDataSink sink)
@@ -91,7 +91,7 @@ namespace AvaloniaVS.IntelliSense
             _sink = sink;
             if (_error is { } error)
             {
-                _sink?.AddEntries(new[] { new XamlErrorTableEntry(_projectName, _path, error) });
+                _sink?.AddEntries([new XamlErrorTableEntry(_projectName, _path, error)]);
             }
             else
             {
@@ -144,7 +144,7 @@ namespace AvaloniaVS.IntelliSense
             _tagSpan = default;
             if (error is not null)
             {
-                _sink?.AddEntries(new[] { new XamlErrorTableEntry(_projectName, _path, error) }, true);
+                _sink?.AddEntries([new XamlErrorTableEntry(_projectName, _path, error)], true);
             }
             else
             {

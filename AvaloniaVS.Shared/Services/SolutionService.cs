@@ -19,19 +19,12 @@ namespace AvaloniaVS.Services
     /// <summary>
     /// Queries the projects in the current solution.
     /// </summary>
-    internal class SolutionService
+    /// <remarks>
+    /// Initializes a new instance of the <see cref="SolutionService"/> class.
+    /// </remarks>
+    /// <param name="dte">The Visual Studio DTE.</param>
+    internal class SolutionService(DTE _dte)
     {
-        private readonly DTE _dte;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="SolutionService"/> class.
-        /// </summary>
-        /// <param name="dte">The Visual Studio DTE.</param>
-        public SolutionService(DTE dte)
-        {
-            _dte = dte;
-        }
-
         /// <summary>
         /// Gets a list of projects in the current solution, waiting for the projects to be
         /// fully loaded.
@@ -118,7 +111,7 @@ namespace AvaloniaVS.Services
                 item.Value.LazyProjectReferences = LazyFlattenProjectReferences(result, item.Value.ProjectReferences);
             }
 
-            return result.Values.ToList();
+            return [.. result.Values];
         }
 
         private bool IsCsproj(ProjectInfo projectInfo)
@@ -185,19 +178,18 @@ namespace AvaloniaVS.Services
 
         private static IReadOnlyList<Project> GetProjectReferences(VSProject project)
         {
-            return project.References
+            return [.. project.References
                 .OfType<Reference>()
                 .Where(x => GetSourceProjectSafe(x) != null)
-                .Select(x => x.SourceProject)
-                .ToList();
+                .Select(x => x.SourceProject)];
         }
 
         private static IReadOnlyList<string> GetReferences(VSProject project)
         {
-            return project.References
+            return [.. project.References
                 .OfType<Reference>()
                 .Where(x => GetSourceProjectSafe(x) == null)
-                .Select(x => x.Name).ToList();
+                .Select(x => x.Name)];
         }
 
         /// <summary>
@@ -254,7 +246,7 @@ namespace AvaloniaVS.Services
                 }
             }
 
-            return alternatives.Values.ToList();
+            return [.. alternatives.Values];
         }
 
         private static Lazy<IReadOnlyList<Project>> LazyFlattenProjectReferences(
@@ -269,13 +261,13 @@ namespace AvaloniaVS.Services
             IReadOnlyList<Project> references)
         {
             var result = new HashSet<Project>();
-            
+
             foreach (var reference in references)
             {
                 FlattenProjectReferences(projects, reference, result);
             }
 
-            return result.ToList();
+            return [.. result];
         }
 
         private static void FlattenProjectReferences(

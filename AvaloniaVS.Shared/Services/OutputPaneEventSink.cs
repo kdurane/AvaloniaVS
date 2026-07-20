@@ -15,7 +15,7 @@ namespace AvaloniaVS.Services
     /// </summary>
     internal class OutputPaneEventSink : ILogEventSink
     {
-        private static readonly Guid paneGuid = new Guid("DC845612-459C-485C-8157-71BC39C9A044");
+        private static readonly Guid s_paneGuid = new("DC845612-459C-485C-8157-71BC39C9A044");
         private readonly IVsOutputWindowPane _pane;
         private readonly ITextFormatter _formatter;
 
@@ -31,8 +31,8 @@ namespace AvaloniaVS.Services
             ThreadHelper.ThrowIfNotOnUIThread();
 
             _formatter = new MessageTemplateTextFormatter(outputTemplate, null);
-            ErrorHandler.ThrowOnFailure(output.CreatePane(paneGuid, "Avalonia Diagnostics", 1, 1));
-            output.GetPane(paneGuid, out _pane);
+            ErrorHandler.ThrowOnFailure(output.CreatePane(s_paneGuid, "Avalonia Diagnostics", 1, 1));
+            output.GetPane(s_paneGuid, out _pane);
         }
 
 #pragma warning disable VSTHRD010

@@ -1,17 +1,10 @@
 ﻿namespace Avalonia.Ide.CompletionEngine.AssemblyMetadata;
 
-public class MetadataReader
+public class MetadataReader(IMetadataProvider provider)
 {
-    private readonly IMetadataProvider _provider;
-
-    public MetadataReader(IMetadataProvider provider)
-    {
-        _provider = provider;
-    }
-
     public Metadata? GetForTargetAssembly(IAssemblyProvider assemblyProvider)
     {
-        using var session = _provider.GetMetadata(assemblyProvider.GetAssemblies());
+        using var session = provider.GetMetadata(assemblyProvider.GetAssemblies());
         return MetadataConverter.ConvertMetadata(session);
     }
 }

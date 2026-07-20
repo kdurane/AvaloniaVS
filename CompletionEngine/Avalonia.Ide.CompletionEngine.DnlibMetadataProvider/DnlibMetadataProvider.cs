@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Avalonia.Ide.CompletionEngine.AssemblyMetadata;
@@ -11,15 +10,15 @@ public class DnlibMetadataProvider : IMetadataProvider
 {
     public IMetadataReaderSession GetMetadata(IEnumerable<string> paths)
     {
-        return new DnlibMetadataProviderSession(paths.ToArray());
+        return new DnlibMetadataProviderSession([.. paths]);
     }
 }
 
 internal class DnlibMetadataProviderSession : IMetadataReaderSession
 {
     private readonly ModuleContext _modCtx;
-    private readonly Dictionary<ITypeDefOrRef, ITypeDefOrRef> _baseTypes = new Dictionary<ITypeDefOrRef, ITypeDefOrRef>();
-    private readonly Dictionary<ITypeDefOrRef, TypeDef> _baseTypeDefs = new Dictionary<ITypeDefOrRef, TypeDef>();
+    private readonly Dictionary<ITypeDefOrRef, ITypeDefOrRef> _baseTypes = [];
+    private readonly Dictionary<ITypeDefOrRef, TypeDef> _baseTypeDefs = [];
     public string? TargetAssemblyName { get; private set; }
     public IReadOnlyCollection<IAssemblyInformation> Assemblies { get; }
     public DnlibMetadataProviderSession(string[] directoryPath)
@@ -39,7 +38,7 @@ internal class DnlibMetadataProviderSession : IMetadataReaderSession
         if (directoryPath == null || directoryPath.Length == 0)
         {
             TargetAssemblyName = null;
-            Assemblies = Array.Empty<IAssemblyInformation>();
+            Assemblies = [];
         }
         else
         {
@@ -90,7 +89,7 @@ internal class DnlibMetadataProviderSession : IMetadataReaderSession
         foreach (var path in lst)
             asmResovler.PreSearchPaths.Add(path);
 
-        List<AssemblyDef> assemblies = new List<AssemblyDef>();
+        List<AssemblyDef> assemblies = [];
 
         foreach (var asm in lst)
         {

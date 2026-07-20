@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using Avalonia.Ide.CompletionEngine.AssemblyMetadata;
 using Microsoft.VisualStudio.Shell;
 using Serilog;
@@ -26,8 +25,10 @@ namespace AvaloniaVS.Shared.Services
             {
                 if (project.Object is VSProject vsProject)
                 {
-                    var references = new List<string>(200);
-                    references.Add(xamlPrimaryAssemblyPath);
+                    var references = new List<string>(200)
+                    {
+                        xamlPrimaryAssemblyPath
+                    };
 
                     foreach (Reference reference in vsProject.References)
                     {

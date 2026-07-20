@@ -271,17 +271,13 @@ namespace AvaloniaVS.Views
 
         private static AvMouseButton GetButton(WpfMouseButton button)
         {
-            switch (button)
+            return button switch
             {
-                case WpfMouseButton.Left:
-                    return AvMouseButton.Left;
-                case WpfMouseButton.Middle:
-                    return AvMouseButton.Middle;
-                case WpfMouseButton.Right:
-                    return AvMouseButton.Right;
-                default:
-                    return AvMouseButton.None;
-            }
+                WpfMouseButton.Left => AvMouseButton.Left,
+                WpfMouseButton.Middle => AvMouseButton.Middle,
+                WpfMouseButton.Right => AvMouseButton.Right,
+                _ => AvMouseButton.None,
+            };
         }
 
         private static InputModifiers[] GetModifiers(MouseEventArgs e)
@@ -351,7 +347,7 @@ namespace AvaloniaVS.Views
                 var clampedWidth = Math.Max(0, width - padding * 2);
                 var clampedHeight = Math.Max(0, height - padding * 2);
 
-                _lastSize = new(width - padding * 2, height - padding * 2);
+                _lastSize = new(clampedWidth, clampedHeight);
             }
             return _lastSize.Value;
         }

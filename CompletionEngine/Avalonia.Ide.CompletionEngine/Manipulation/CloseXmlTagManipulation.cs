@@ -3,26 +3,17 @@ using System.Collections.Generic;
 
 namespace Avalonia.Ide.CompletionEngine;
 
-public class CloseXmlTagManipulation
+public class CloseXmlTagManipulation(XmlParser state, ReadOnlyMemory<char> text, int position)
 {
-    private readonly XmlParser _state;
-    private readonly ReadOnlyMemory<char> _text;
-    private readonly int _position;
-
-    public CloseXmlTagManipulation(XmlParser state, ReadOnlyMemory<char> text, int position)
-    {
-        _state = state;
-        _text = text;
-        _position = position;
-    }
+    private readonly ReadOnlyMemory<char> _text = text;
 
     public void TryCloseTag(ITextChange textChange, IList<TextManipulation> manipulations)
     {
-        var currentTag = _state.ParseCurrentTagName();
+        var currentTag = state.ParseCurrentTagName();
         if (textChange.NewText == "/" && !string.IsNullOrEmpty(currentTag) && currentTag != "/")
         {
             var text = _text.Span;
-            var pos = _state.ParserPos;
+            var pos = state.ParserPos;
             var c = ' ';
             while (char.IsWhiteSpace(c) && text.Length > pos + 1)
             {
@@ -33,15 +24,15 @@ public class CloseXmlTagManipulation
             var tagAlreadyClosed = c == '>';
             if (!tagAlreadyClosed)
             {
-                manipulations.Add(TextManipulation.Insert(_position + 1, $">"));
+                manipulations.Add(TextManipulation.Insert(position + 1, $">"));
             }
             else
             {
                 var closingTagPos = FindClosingTag(currentTag, pos + 1);
                 if (closingTagPos != null)
                 {
-                    manipulations.Add(TextManipulation.Insert(_position + 1, $">"));
-                    manipulations.Add(TextManipulation.Delete(_position + 1, closingTagPos.Value - _position));
+                    manipulations.Add(TextManipulation.Insert(position + 1, $">"));
+                    manipulations.Add(TextManipulation.Delete(position + 1, closingTagPos.Value - position));
                 }
             }
         }

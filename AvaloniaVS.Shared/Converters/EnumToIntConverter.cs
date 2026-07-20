@@ -8,7 +8,7 @@ namespace AvaloniaVS.Converters
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (targetType.IsEnum && value is int i)
+            if (targetType.IsEnum && value is int)
             {
                 return Enum.ToObject(targetType, value);
             }

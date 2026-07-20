@@ -42,7 +42,7 @@ namespace AvaloniaVS.Models
         /// </summary>
         public IReadOnlyList<Project> ProjectReferences
         {
-            get => _projectReferences ?? (_projectReferences = LazyProjectReferences?.Value);
+            get => _projectReferences ??= LazyProjectReferences?.Value;
             set => _projectReferences = value;
         }
 

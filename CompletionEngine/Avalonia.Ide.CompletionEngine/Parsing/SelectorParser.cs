@@ -34,7 +34,7 @@ internal ref struct SelectorParser
             _data = data;
             _original = data;
         }
-        private SelectorStatement statement = SelectorStatement.Start;
+        private SelectorStatement _statement = SelectorStatement.Start;
         public int NamespaceStart = -1;
         public int NamespaceEnd = -1;
         public int TypeNameStart = -1;
@@ -66,10 +66,10 @@ internal ref struct SelectorParser
 
         public SelectorStatement Statement
         {
-            get => statement;
+            get => _statement;
             set
             {
-                if (statement != value)
+                if (_statement != value)
                 {
                     if (value is SelectorStatement.Start or SelectorStatement.Middle)
                     {
@@ -80,9 +80,9 @@ internal ref struct SelectorParser
                         (NamespaceStart, NamespaceEnd, TypeNameStart, TypeNameEnd, ClassNameStart, ClassNameEnd, PropertyNameStart, PropertyNameEnd, NameStart, NameEnd, ValueStart, ValueEnd, FunctionNameStart, FunctionNameEnd) =
                             (-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
                     }
-                    PreviousStatement = statement;
+                    PreviousStatement = _statement;
                 }
-                statement = value;
+                _statement = value;
             }
         }
 
@@ -174,7 +174,7 @@ internal ref struct SelectorParser
             {
                 return TakeWhile(c => IsValidIdentifierChar(c));
             }
-            return ReadOnlySpan<char>.Empty;
+            return [];
         }
 
         public ReadOnlySpan<char> ParseIdentifier()
@@ -183,7 +183,7 @@ internal ref struct SelectorParser
             {
                 return TakeWhile(c => IsValidIdentifierChar(c));
             }
-            return ReadOnlySpan<char>.Empty;
+            return [];
         }
 
         private static bool IsValidIdentifierStart(char c)

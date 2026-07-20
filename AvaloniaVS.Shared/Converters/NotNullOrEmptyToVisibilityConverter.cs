@@ -10,7 +10,7 @@ namespace AvaloniaVS.Converters
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            return (value as IList)?.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            return value is IList { Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

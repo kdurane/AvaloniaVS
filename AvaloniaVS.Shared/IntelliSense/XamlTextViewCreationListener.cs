@@ -15,17 +15,10 @@ namespace AvaloniaVS.IntelliSense
     [Export(typeof(IWpfTextViewCreationListener))]
     [TextViewRole(PredefinedTextViewRoles.Editable)]
     [TextViewRole(PredefinedTextViewRoles.PrimaryDocument)]
-    internal sealed class XamlTextViewCreationListener : IWpfTextViewCreationListener
+    [method: ImportingConstructor]
+    internal sealed class XamlTextViewCreationListener(
+        [Import(typeof(SVsServiceProvider))] IServiceProvider serviceProvider) : IWpfTextViewCreationListener
     {
-        private readonly IServiceProvider _serviceProvider;
-
-        [ImportingConstructor]
-        public XamlTextViewCreationListener(
-            [Import(typeof(SVsServiceProvider))] IServiceProvider serviceProvider)
-        {
-            _serviceProvider = serviceProvider;
-        }
-
         public void TextViewCreated(IWpfTextView textView)
         {            
             // If the buffer contains Avalonia XAML, register a completion handler on it.

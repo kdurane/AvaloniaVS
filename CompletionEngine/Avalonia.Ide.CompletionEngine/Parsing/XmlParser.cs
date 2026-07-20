@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace Avalonia.Ide.CompletionEngine;
 
-public class XmlParser
+public class XmlParser(ReadOnlyMemory<char> data, int start = 0)
 {
     public enum ParserState
     {
@@ -24,26 +24,24 @@ public class XmlParser
 
     public ParserState State { get; private set; }
 
-    private readonly ReadOnlyMemory<char> _data;
-    private int _parserPos;
     private int _elementNameStart;
     private int _attributeNameStart;
     private int? _elementNameEnd;
     private int? _attributeNameEnd;
     private int _attributeValueStart;
-    private Stack<int> _containingTagStart;
+    private Stack<int> _containingTagStart = new();
     private bool _isClosingTag;
 
     public string? TagName => State >= ParserState.StartElement
-        ? _data.Span.Slice(_elementNameStart, (_elementNameEnd ?? _data.Length - 1) - _elementNameStart + 1).ToString()
+        ? data.Span.Slice(_elementNameStart, (_elementNameEnd ?? data.Length - 1) - _elementNameStart + 1).ToString()
         : null;
 
     public string? AttributeName => State >= ParserState.StartAttribute
-        ? _data.Span.Slice(_attributeNameStart, (_attributeNameEnd ?? _data.Length - 1) - _attributeNameStart + 1).ToString()
+        ? data.Span.Slice(_attributeNameStart, (_attributeNameEnd ?? data.Length - 1) - _attributeNameStart + 1).ToString()
         : null;
 
     public string? AttributeValue =>
-        State == ParserState.AttributeValue ? _data.Span.Slice(_attributeValueStart).ToString() : null;
+        State == ParserState.AttributeValue ? data.Span.Slice(_attributeValueStart).ToString() : null;
 
     public int? CurrentValueStart =>
         State == ParserState.StartElement
@@ -60,16 +58,9 @@ public class XmlParser
 
     public int NestingLevel => _containingTagStart.Count;
 
-    public int ParserPos => _parserPos;
+    public int ParserPos => start;
 
     public bool IsInClosingTag => _isClosingTag;
-
-    public XmlParser(ReadOnlyMemory<char> data, int start = 0)
-    {
-        _containingTagStart = new Stack<int>();
-        _data = data;
-        _parserPos = start;
-    }
 
     private const string CommentStart = "!--";
     private const string CommentEnd = "-->";
@@ -88,7 +79,7 @@ public class XmlParser
         // ReSharper disable once LoopCanBeConvertedToQuery
         for (var c = 0; c < checkFor.Length; c++)
         {
-            if (_data.Span[c + startAt] != checkFor[c])
+            if (data.Span[c + startAt] != checkFor[c])
                 return false;
         }
         return true;
@@ -96,18 +87,18 @@ public class XmlParser
 
     private bool ParseChar()
     {
-        if (_parserPos >= _data.Length)
+        if (start >= data.Length)
         {
             return false;
         }
 
-        var i = _parserPos++;
-        var span = _data.Span;
+        var i = start++;
+        var span = data.Span;
         var c = span[i];
         if (c == '<' && State == ParserState.None)
         {
             State = ParserState.StartElement;
-            _isClosingTag = _data.Span.Length > i + 1 && span[i + 1] == '/';
+            _isClosingTag = data.Span.Length > i + 1 && span[i + 1] == '/';
             _elementNameStart = i + 1;
             _elementNameEnd = null;
 
@@ -218,7 +209,7 @@ public class XmlParser
         else if (State == ParserState.Error && CheckPrev(i - 1, "<"))
         {
             State = ParserState.StartElement;
-            _parserPos--;
+            start--;
         }
         return true;
     }
@@ -232,7 +223,7 @@ public class XmlParser
         if (NestingLevel - level < 0)
             return null;
         var start = _containingTagStart.Skip(level).FirstOrDefault();
-        var m = Regex.Match(_data.Span.Slice(start).ToString(), @"^<[^\s/>]+");
+        var m = Regex.Match(data.Span.Slice(start).ToString(), @"^<[^\s/>]+");
         if (m.Success)
             return m.Value.Substring(1);
         return null;
@@ -245,7 +236,7 @@ public class XmlParser
         var attribRegExpr = new Regex($"\\s?(?:{attributeExpr})\\s*\\=\\s*\"(?<AttribValue>.*?)\"",RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace);
         foreach (var start in _containingTagStart.Skip(startLevel))
         {
-            var m = Regex.Match(_data.Span.Slice(start).ToString(), @"^<[^<]+");
+            var m = Regex.Match(data.Span.Slice(start).ToString(), @"^<[^<]+");
             if (m.Success)
             {
                 var tagNameWithAttributes = m.Value.Substring(1);
@@ -268,7 +259,7 @@ public class XmlParser
         {
             return null;
         }
-        var span = _data.Span;
+        var span = data.Span;
         if (_elementNameStart >= span.Length)
         {
             return "";
@@ -381,5 +372,44 @@ public class XmlParser
         var clonedStack = new Stack<int>(new Stack<int>(_containingTagStart));
         newParser._containingTagStart = clonedStack;
         return newParser;
+    }
+
+    public IEnumerable<(ParserState State, int Start, int End, string? AttributeNam)> EnumerateStates()
+    {
+        var segmentStart = ParserPos;
+        var currentState = State;
+
+        string? SafeAttributeName()
+        {
+            try
+            {
+                return AttributeName;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return null;
+            }
+        }
+
+        while (true)
+        {
+            var posBeforeChar = ParserPos;
+
+            if (!ParseChar())
+            {
+                if (ParserPos > segmentStart)
+                {
+                    yield return (currentState, segmentStart, ParserPos, SafeAttributeName());
+                }
+                yield break;
+            }
+
+            if (State != currentState)
+            {
+                yield return (currentState, segmentStart, posBeforeChar, SafeAttributeName());
+                segmentStart = posBeforeChar;
+                currentState = State;
+            }
+        }
     }
 }

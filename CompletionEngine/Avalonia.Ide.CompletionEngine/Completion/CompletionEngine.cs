@@ -20,8 +20,8 @@ public class CompletionEngine
 
         private Dictionary<string, MetadataType>? _types;
         private string? _currentAssemblyName;
-        private static Regex? _findElementByNameRegex;
-        internal static Regex FindElementByNameRegex => _findElementByNameRegex ??=
+        private static Regex? s_findElementByNameRegex;
+        internal static Regex FindElementByNameRegex => s_findElementByNameRegex ??=
              new($"\\s(?:(x\\:)?Name)=\"(?<AttribValue>[\\w\\:\\s\\|\\.]+)\"", RegexOptions.Compiled);
 
         public void SetMetadata(Metadata metadata, string xml, string? currentAssemblyName = null)
@@ -53,7 +53,7 @@ public class CompletionEngine
             _currentAssemblyName = currentAssemblyName;
 
             var types = new Dictionary<string, MetadataType>();
-            foreach (var alias in Aliases.Concat(new[] { new KeyValuePair<string, string>("", "") }))
+            foreach (var alias in Aliases.Concat([new KeyValuePair<string, string>("", "")]))
             {
                 var aliasValue = alias.Value ?? "";
 
@@ -75,7 +75,7 @@ public class CompletionEngine
         {
             if (_types is null)
             {
-                return Array.Empty<KeyValuePair<string, MetadataType>>();
+                return [];
             }
 
             prefix ??= "";
@@ -141,7 +141,7 @@ public class CompletionEngine
         {
             propName ??= "";
             if (t == null)
-                return Array.Empty<MetadataProperty>();
+                return [];
 
             var e = t.Properties.Where(p => p.Name.StartsWith(propName, StringComparison.OrdinalIgnoreCase) && (hasSetter ? p.HasSetter : p.HasGetter));
 
@@ -162,7 +162,7 @@ public class CompletionEngine
             var t = LookupType(typeName);
             propName ??= "";
             if (t == null)
-                return Array.Empty<string>();
+                return [];
 
             return t.Events.Where(n => n.IsAttached == attached && n.Name.StartsWith(propName, StringComparison.OrdinalIgnoreCase)).Select(n => n.Name);
         }
@@ -270,7 +270,7 @@ public class CompletionEngine
                         {
                             completions.Add(new Completion("/" + parentTag + ">", CompletionKind.Class, priority: 0));
                         }
-                        if (parentTag.IndexOf('.') == -1)
+                        if (!parentTag.Contains('.'))
                         {
                             completions.Add(new Completion(parentTag, $"{parentTag}.", CompletionKind.Class, priority: 1)
                             {
@@ -312,7 +312,7 @@ public class CompletionEngine
             {
                 var dotPos = attributeName.IndexOf('.');
                 curStart += dotPos + 1;
-                var split = attributeName.Split(new[] { '.' }, 2);
+                var split = attributeName.Split(['.'], 2);
                 completions.AddRange(Helper.FilterPropertyNames(split[0], split[1], attached: true, hasSetter: true)
                     .Select(x => new Completion(x, x + attributeSuffix, x, CompletionKind.AttachedProperty, x.Length + attributeOffset)));
 
@@ -408,7 +408,7 @@ public class CompletionEngine
                             hintCompletions = false;
                             if (ProcessSelector(search.AsSpan(), state, completions, currentAssemblyName, fullText) is int delta)
                             {
-                                curStart = curStart + delta;
+                                curStart += delta;
                             }
                         }
                         else
@@ -542,13 +542,12 @@ public class CompletionEngine
     private static List<Completion> SortCompletions(List<Completion> completions)
     {
         // Group the completions based on Kind, and sort the completions for each group
-        return completions
+        return [.. completions
             .GroupBy(i => i.Kind, (kind, compl) =>
                 (Kind: kind, Completions: compl
                 .OrderBy(j => j.Priority).ThenBy(j => j.DisplayText)))
             .OrderBy(i => GetCompletionPriority(i.Kind))
-            .SelectMany(i => i.Completions)
-            .ToList();
+            .SelectMany(i => i.Completions)];
     }
 
     private static int GetCompletionPriority(CompletionKind kind)
@@ -618,8 +617,8 @@ public class CompletionEngine
                                 xamlNameBuilder.Append(',');
                                 insertTextBuilder.Append(',');
                             }
-                            xamlNameBuilder[xamlNameBuilder.Length - 1] = '>';
-                            insertTextBuilder[insertTextBuilder.Length - 1] = '"';
+                            xamlNameBuilder[^1] = '>';
+                            insertTextBuilder[^1] = '"';
                         }
                         xamlName = xamlNameBuilder.ToString();
                         insertText = insertTextBuilder.ToString();
@@ -793,7 +792,7 @@ public class CompletionEngine
                     }
                 }
 
-                return Array.Empty<Completion>();
+                return [];
             }
 
             return forProperties(state.FindParentAttributeValue("(x\\:)?DataType"), entered);
@@ -844,7 +843,7 @@ public class CompletionEngine
             i++;
         }
 
-        return forPropertiesFromType(mdType, values[i], p => $"{string.Join(".", values.Take(i).ToArray())}.{p}");
+        return forPropertiesFromType(mdType, values[i], p => $"{string.Join(".", [.. values.Take(i)])}.{p}");
     }
 
     private List<Completion> GetHintCompletions(MetadataType type, string? entered, string? currentAssemblyName = null, string? fullText = null, XmlParser? state = null)
@@ -1106,15 +1105,13 @@ public class CompletionEngine
                                 var parts = ownerType.TemplateParts;
                                 var fullName = GetFullName(parser);
                                 var partType = string.IsNullOrEmpty(fullName)
-                                    ? default(MetadataType?)
+                                    ? default
                                     : Helper.FilterTypes(fullName)
                                         .Select(kvp => kvp.Value)
                                         .FirstOrDefault();
                                 if (partType is not null)
                                 {
-                                    parts = parts
-                                        .Where(p => p.Type.AssemblyQualifiedName == partType.AssemblyQualifiedName)
-                                        .ToList();
+                                    parts = [.. parts.Where(p => p.Type.AssemblyQualifiedName == partType.AssemblyQualifiedName)];
                                 }
                                 if (parts.Any())
                                 {
@@ -1391,11 +1388,11 @@ public class CompletionEngine
         return type.Name!;
     }
 
-    public static readonly IEnumerable<INamespaceTrasformation> Default = new INamespaceTrasformation[]
-    {
+    public static readonly IEnumerable<INamespaceTrasformation> Default =
+    [
         new NamespaceTrasformations.ToLowerTrasformation(),
         new NamespaceTrasformations.ReplaceDot('_'),
-    };
+    ];
 
     public static string GetXmlnsFromNamespace(string @namespace) =>
         GetXmlnsFromNamespace(@namespace.ToCharArray(), Default);

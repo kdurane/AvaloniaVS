@@ -9,7 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Avalonia.Ide.CompletionEngine;
@@ -87,8 +86,8 @@ namespace AvaloniaVS.Views
         private static readonly GridLength s_zeroStar = new(0, GridUnitType.Star);
         private static readonly GridLength s_oneStar = new(1, GridUnitType.Star);
         private readonly Throttle<string> _throttle;
-        private readonly ColumnDefinition _previewCol = new() { Width = s_oneStar };
-        private readonly ColumnDefinition _codeCol = new() { Width = s_oneStar };
+        private readonly ColumnDefinition _previewCol = new() { Width = s_oneStar, MinWidth = 50 };
+        private readonly ColumnDefinition _codeCol = new() { Width = s_oneStar, MinWidth = 50 };
         private Project _project;
         private IWpfTextViewHost _editor;
         private string _xamlPath;

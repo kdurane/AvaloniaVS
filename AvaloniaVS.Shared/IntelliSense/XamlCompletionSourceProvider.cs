@@ -10,19 +10,14 @@ namespace AvaloniaVS.IntelliSense
     [Export(typeof(ICompletionSourceProvider))]
     [ContentType("xml")]
     [Name("Avalonia XAML Completion")]
-    internal class XamlCompletionSourceProvider : ICompletionSourceProvider
+    [method: ImportingConstructor]
+    internal class XamlCompletionSourceProvider([Import] CompletionEngineSource completionEngineSource) : ICompletionSourceProvider
     {
-        [ImportingConstructor]
-        public XamlCompletionSourceProvider([Import] CompletionEngineSource completionEngineSource)
-        {
-            _completionEngineSource = completionEngineSource;
-        }
-        private readonly CompletionEngineSource _completionEngineSource;
         public ICompletionSource TryCreateCompletionSource(ITextBuffer textBuffer)
         {
             if (textBuffer.Properties.ContainsProperty(typeof(XamlBufferMetadata)))
             {
-                return new XamlCompletionSource(textBuffer, _completionEngineSource);
+                return new XamlCompletionSource(textBuffer, completionEngineSource);
             }
 
             return null;

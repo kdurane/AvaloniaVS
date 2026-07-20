@@ -80,10 +80,10 @@ public class TextManipulator
             }
         }
 
-        return maniplations.OrderByDescending(n => n.Start).ToList();
+        return [.. maniplations.OrderByDescending(n => n.Start)];
     }
 
-    private readonly char[] _xmlNameSpecialCharacters = new[] { '-', '_', '.' };
+    private readonly char[] _xmlNameSpecialCharacters = ['-', '_', '.'];
 
     private void SynchronizeStartAndEndTag(ITextChange textChange, List<TextManipulation> maniplations)
     {

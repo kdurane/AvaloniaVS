@@ -3,25 +3,18 @@ using AvaloniaTextChange = Avalonia.Ide.CompletionEngine.ITextChange;
 
 namespace AvaloniaVS.IntelliSense
 {
-    public class TextChangeAdapter : AvaloniaTextChange
+    public class TextChangeAdapter(ITextChange textChange) : AvaloniaTextChange
     {
-        private readonly ITextChange _textChange;
-
-        public TextChangeAdapter(ITextChange textChange)
-        {
-            _textChange = textChange;
-        }
+        /// <inheritdoc/>
+        public int NewPosition => textChange.NewPosition;
 
         /// <inheritdoc/>
-        public int NewPosition => _textChange.NewPosition;
+        public string NewText => textChange.NewText;
 
         /// <inheritdoc/>
-        public string NewText => _textChange.NewText;
+        public int OldPosition => textChange.OldPosition;
 
         /// <inheritdoc/>
-        public int OldPosition => _textChange.OldPosition;
-
-        /// <inheritdoc/>
-        public string OldText => _textChange.OldText;
+        public string OldText => textChange.OldText;
     }
 }

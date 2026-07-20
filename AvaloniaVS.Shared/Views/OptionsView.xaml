@@ -8,6 +8,7 @@
              xmlns:serilog="clr-namespace:Serilog.Events;assembly=Serilog"
              xmlns:a="clr-namespace:AvaloniaVS"
              mc:Ignorable="d" 
+             d:Background="White"
              d:DesignHeight="450" d:DesignWidth="800">
     <UserControl.Resources>
         <conv:EnumValuesConverter x:Key="EnumValues"/>

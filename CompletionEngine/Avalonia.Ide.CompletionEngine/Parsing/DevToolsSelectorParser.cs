@@ -18,7 +18,7 @@ public class DevToolsSelectorParser
     public static IReadOnlyList<DevToolsSelectorInfo> Parse(char[] chars)
     {
         Range[] parts = new Range[3];
-        List<DevToolsSelectorInfo> selectorsInfo = new();
+        List<DevToolsSelectorInfo> selectorsInfo = [];
         var partStartIndex = -1;
         var partName = SelectorInfoPart.Namespace;
 

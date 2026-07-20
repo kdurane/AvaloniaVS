@@ -327,7 +327,7 @@ namespace AvaloniaVS.IntelliSense
                         }
 
                         var lastInsertionChar = (selected.InsertionText?.Length ?? 0) > 0
-                            ? selected.InsertionText[selected.InsertionText.Length - 1]
+                            ? selected.InsertionText[^1]
                             : default;
 
                         // Cases like {Binding Path= result in {Binding Path==
@@ -536,7 +536,7 @@ namespace AvaloniaVS.IntelliSense
                     }
                     var methodToInsert = GetMethodDeclarationSyntax("void", generatedMethodName, parameterTypes, parameterNames);
                     var duplicatingMethodIds = new List<int>();
-                    foreach (MethodDeclarationSyntax item in codeBehindClass.DescendantNodes().Where(x => x.IsKind(SyntaxKind.MethodDeclaration)))
+                    foreach (MethodDeclarationSyntax item in codeBehindClass.DescendantNodes().Where(x => x.IsKind(SyntaxKind.MethodDeclaration)).Cast<MethodDeclarationSyntax>())
                     {
                         if (item.ReturnType is PredefinedTypeSyntax predefinedTypeSyntax &&
                             predefinedTypeSyntax.Keyword.IsKind(SyntaxKind.VoidKeyword))

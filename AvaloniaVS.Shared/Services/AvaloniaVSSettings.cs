@@ -136,7 +136,7 @@ namespace AvaloniaVS.Services
                 ZoomLevel = _settings.GetString(
                     SettingsKey,
                     nameof(ZoomLevel),
-                  "100%");
+                  "Fit All");
                 UsageTracking = _settings.GetBoolean(
                     SettingsKey,
                     nameof(UsageTracking),

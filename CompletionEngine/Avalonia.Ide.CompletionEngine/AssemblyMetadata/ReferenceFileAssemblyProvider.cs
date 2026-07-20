@@ -52,7 +52,7 @@ namespace Avalonia.Ide.CompletionEngine.AssemblyMetadata
             catch (Exception ex) when
                 (ex is DirectoryNotFoundException || ex is FileNotFoundException)
             {
-                return Array.Empty<string>();
+                return [];
             }
             catch (Exception ex)
             {

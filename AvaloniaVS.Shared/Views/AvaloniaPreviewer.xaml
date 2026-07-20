@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:Background="White"
     d:DesignHeight="450"
     d:DesignWidth="800"
     mc:Ignorable="d">
@@ -34,50 +35,52 @@
             </Grid>
         </ScrollViewer>
 
-    <Border Name="error"
+        <Border
+            Name="error"
             HorizontalAlignment="Stretch"
             VerticalAlignment="Stretch"
             Background="#80808080"
             Visibility="Collapsed">
 
-      <StackPanel Background="{DynamicResource VsBrush.ToolWindowBackground}"
-                  HorizontalAlignment="Center"
-                  VerticalAlignment="Center">
-        <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
-          <Grid Margin="0,0,7,0">
-            <Ellipse
-                Width="22"
-                Height="22"
-                Fill="#f55762" />
-            <TextBlock
+            <StackPanel
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                FontSize="16"
-                FontWeight="ExtraBold"
-                Foreground="{DynamicResource VsBrush.WindowText}"
-                Text="!" />
-          </Grid>
+                Background="{DynamicResource VsBrush.ToolWindowBackground}">
+                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                    <Grid Margin="0,0,7,0">
+                        <Ellipse
+                            Width="22"
+                            Height="22"
+                            Fill="#f55762" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="16"
+                            FontWeight="ExtraBold"
+                            Foreground="{DynamicResource VsBrush.WindowText}"
+                            Text="!" />
+                    </Grid>
 
-          <TextBlock
-            Name="errorHeading"
-            HorizontalAlignment="Center"
-            FontSize="18" />
-        </StackPanel>
+                    <TextBlock
+                        Name="errorHeading"
+                        HorizontalAlignment="Center"
+                        FontSize="18" />
+                </StackPanel>
 
-        <TextBlock
-        Name="errorMessage"
-        Margin="20,10,20,0"
-        HorizontalAlignment="Center"
-        TextWrapping="Wrap" />
-        <Button
-          Name="buildButton"
-          Margin="0,15,0,0"
-          Padding="7,5,7,5"
-          Visibility="Hidden"
-          HorizontalAlignment="Center"
-          VerticalAlignment="Center"
-          Content="Build" />
-      </StackPanel>
-    </Border>
+                <TextBlock
+                    Name="errorMessage"
+                    Margin="20,10,20,0"
+                    HorizontalAlignment="Center"
+                    TextWrapping="Wrap" />
+                <Button
+                    Name="buildButton"
+                    Margin="0,15,0,0"
+                    Padding="7,5,7,5"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Content="Build"
+                    Visibility="Hidden" />
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

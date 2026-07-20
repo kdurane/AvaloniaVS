@@ -46,9 +46,12 @@ internal class EditorPane : WindowPane,
     private bool _isInitialized;
     private bool _hasCreatedCodeWindow;
     private readonly Project _project;
-    private bool _isPaused;
     private IVsSolutionBuildManager2 _buildManager;
     private uint _buildEventsCookie;
+    private bool _isDebugging;
+    private bool _isBuilding;
+
+    private bool ComputedPaused => _isDebugging || _isBuilding;
 
     public EditorPane(Project project, TextEditorHost editorHost)
     {
@@ -121,6 +124,9 @@ internal class EditorPane : WindowPane,
         ThreadHelper.ThrowIfNotOnUIThread();
         base.Dispose(disposing);
 
+        _buildManager?.UnadviseUpdateSolutionEvents(_buildEventsCookie);
+        _buildManager = null;
+
         var tm = GetService(typeof(SVsTextManager)) as IVsTextManager;
         tm?.UnregisterIndependentView(this, _textEditorHost.TextBuffer);
         _monitorSelection?.UnadviseSelectionEvents(_selectionEventsCookie);
@@ -183,15 +189,6 @@ internal class EditorPane : WindowPane,
         tm.RegisterIndependentView(this, _textEditorHost.TextBuffer);
 
         //// Sub to events related to building so we can respond accordingly
-        //var dte = (DTE)Package.GetGlobalService(typeof(DTE));
-        //_buildEvents = dte.Events.BuildEvents;
-        //_dteEvents = dte.Events.DTEEvents;
-        //_isPaused = dte.Mode == vsIDEMode.vsIDEModeDebug;
-
-        //_buildEvents.OnBuildBegin += HandleBuildBegin;
-        //_buildEvents.OnBuildDone += HandleBuildDone;
-        //_dteEvents.ModeChanged += HandleModeChanged;
-
         _buildManager = (IVsSolutionBuildManager2)GetService(typeof(SVsSolutionBuildManager));
         _buildManager.AdviseUpdateSolutionEvents(new BuildEventsSink(this), out _buildEventsCookie);
 
@@ -200,7 +197,7 @@ internal class EditorPane : WindowPane,
 
         var settings = this.GetMefService<IAvaloniaVSSettings>();
         var xamlEditorView = _content;
-        xamlEditorView.IsPaused = _isPaused;
+        xamlEditorView.IsPaused = ComputedPaused;
         xamlEditorView.SplitOrientation = settings.DesignerSplitOrientation;
         xamlEditorView.PreviewAndXamlPanesSwapped = settings.DesignerSplitSwapped;
         xamlEditorView.View = settings.DesignerView;
@@ -232,36 +229,28 @@ internal class EditorPane : WindowPane,
         public int UpdateProjectCfg_Done(IVsHierarchy pHierProj, IVsCfg pCfgProj, IVsCfg pCfgSln, uint dwAction, int fSuccess, int fCancel) => VSConstants.S_OK;
     }
 
-    private void HandleModeChanged(vsIDEMode lastMode)
-    {
-        if (_content != null)
-        {
-            _content.IsPaused = _isPaused = lastMode == vsIDEMode.vsIDEModeDesign;
-        }
-    }
-
     private void HandleBuildBegin()
     {
         Log.Logger.Debug("Build started");
-
-        _isPaused = true;
-
-        if (_content != null)
-        {
-            _content.IsPaused = _isPaused;
-        }
+        _isBuilding = true;
+        UpdatePausedState();
     }
 
     private void HandleBuildDone()
     {
         Log.Logger.Debug("Build finished");
+        _isBuilding = false;
 
-        _isPaused = false;
+        _content?.InvalidateCompletionMetadata();
 
+        UpdatePausedState();
+    }
+
+    private void UpdatePausedState()
+    {
         if (_content != null)
         {
-            _content.InvalidateCompletionMetadata();
-            _content.IsPaused = _isPaused;
+            _content.IsPaused = ComputedPaused;
         }
     }
 
@@ -526,7 +515,8 @@ internal class EditorPane : WindowPane,
         _monitorSelection.GetCmdUIContextCookie(ref debugContext, out _debugContextCookie);
 
         _monitorSelection.IsCmdUIContextActive(_debugContextCookie, out int isActive);
-        _isPaused = isActive != 0;
+        _isDebugging = isActive != 0;
+        UpdatePausedState();
 
         _monitorSelection.AdviseSelectionEvents(new SelectionSink(this), out _selectionEventsCookie);
     }
@@ -537,9 +527,10 @@ internal class EditorPane : WindowPane,
 
         public int OnCmdUIContextChanged(uint dwCmdUICookie, int fActive)
         {
-            if (dwCmdUICookie == _owner._debugContextCookie && _owner._content != null)
+            if (dwCmdUICookie == _owner._debugContextCookie)
             {
-                _owner._content.IsPaused = _owner._isPaused = fActive != 0;
+                _owner._isDebugging = fActive != 0;
+                _owner.UpdatePausedState();
             }
             return VSConstants.S_OK;
         }

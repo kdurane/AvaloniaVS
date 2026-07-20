@@ -11,23 +11,10 @@ namespace AvaloniaVS.Shared.SuggestedActions
     [Export(typeof(ISuggestedActionsSourceProvider))]
     [Name("SuggestedActionsSourceProvider")]
     [ContentType("xml")]
-    internal class SuggestedActionsSourceProvider : ISuggestedActionsSourceProvider
+    [method: ImportingConstructor]
+    internal class SuggestedActionsSourceProvider([Import] IWpfDifferenceViewerFactoryService _diffFactory, [Import] IDifferenceBufferFactoryService _diffBufferFactory,
+        [Import] ITextBufferFactoryService _bufferFactory, [Import] ITextEditorFactoryService _textEditorFactoryService) : ISuggestedActionsSourceProvider
     {
-        private readonly IWpfDifferenceViewerFactoryService _diffFactory;
-        private readonly IDifferenceBufferFactoryService _diffBufferFactory;
-        private readonly ITextBufferFactoryService _bufferFactory;
-        private readonly ITextEditorFactoryService _textEditorFactoryService;
-
-        [ImportingConstructor]
-        public SuggestedActionsSourceProvider([Import] IWpfDifferenceViewerFactoryService diffFactory, [Import] IDifferenceBufferFactoryService diffBufferFactory,
-            [Import] ITextBufferFactoryService bufferFactory, [Import] ITextEditorFactoryService textEditorFactoryService)
-        {
-            _diffFactory = diffFactory;
-            _diffBufferFactory = diffBufferFactory;
-            _bufferFactory = bufferFactory;
-            _textEditorFactoryService = textEditorFactoryService;
-        }
-
         [Import(typeof(ITextStructureNavigatorSelectorService))]
         internal ITextStructureNavigatorSelectorService NavigatorService { get; set; }
 

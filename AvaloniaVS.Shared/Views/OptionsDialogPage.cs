@@ -14,7 +14,7 @@ namespace AvaloniaVS.Views
     {
         private OptionsView _options;
 
-        protected override UIElement Child => _options ?? (_options = new OptionsView());
+        protected override UIElement Child => _options ??= new OptionsView();
 
         protected override void OnActivate(CancelEventArgs e)
         {

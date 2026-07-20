@@ -18,21 +18,19 @@ namespace AvaloniaVS.Services
     /// Implements <see cref="IVsEditorFactory"/> to create <see cref="DesignerPane"/>s containing
     /// an Avalonia XAML designer.
     /// </summary>
+    /// <remarks>
+    /// Initializes a new instance of the <see cref="EditorFactory"/> class.
+    /// </remarks>
+    /// <param name="package">The package that the factory belongs to.</param>
     [Guid(AvaloniaVS.Constants.AvaloviaFactoryEditorGuidString)]
-    internal sealed class EditorFactory : IVsEditorFactory, IDisposable
+    internal sealed class EditorFactory(AvaloniaPackage package) : IVsEditorFactory, IDisposable
     {
-        private readonly AvaloniaPackage _package;
         private IOleServiceProvider _oleServiceProvider;
         private ServiceProvider _serviceProvider;
 
         private const string CsExt = ".cs";
         private const string FsExt = ".fs";
         private const string VbExt = ".vb";
-        /// <summary>
-        /// Initializes a new instance of the <see cref="EditorFactory"/> class.
-        /// </summary>
-        /// <param name="package">The package that the factory belongs to.</param>
-        public EditorFactory(AvaloniaPackage package) => _package = package;
 
         /// <inheritdoc/>
         public int SetSite(IOleServiceProvider psp)
@@ -102,16 +100,6 @@ namespace AvaloniaVS.Services
                         VsShellUtilities.OpenDocument(_serviceProvider, codeFilePath);
                         return VSConstants.S_OK;
                     }
-                    //if (GetExtensionObject(pvHier, itemid) is ProjectItem pi)
-                    //{
-                    //    var codeFile = FindCodeFileForXaml(pi, out var codeProjectItem);
-                    //    if (codeFile)
-                    //    {
-                    //        var wnd = codeProjectItem.Open(EnvDTE.Constants.vsViewKindTextView);
-                    //        wnd.Activate();
-                    //        return VSConstants.S_OK;
-                    //    }
-                    //}
                 }
                 pszPhysicalView = null;
             }
@@ -234,7 +222,7 @@ namespace AvaloniaVS.Services
                 Type textLinesType = typeof(IVsTextLines);
                 Guid riid = textLinesType.GUID;
                 Guid clsid = typeof(VsTextBufferClass).GUID;
-                textLines = _package.CreateInstance(ref clsid, ref riid, textLinesType) as IVsTextLines;
+                textLines = package.CreateInstance(ref clsid, ref riid, textLinesType) as IVsTextLines;
 
                 // set the buffer's site
                 ((IObjectWithSite)textLines).SetSite(_serviceProvider.GetService(typeof(IOleServiceProvider)));
@@ -307,61 +295,6 @@ namespace AvaloniaVS.Services
                 out var objProj));
             return objProj as Project;
         }
-
-        private static EnvDTE.ProjectItem GetExtensionObject(IVsHierarchy hierarchy, uint itemId)
-        {
-            object project;
-
-            ThreadHelper.ThrowIfNotOnUIThread();
-
-            ErrorHandler.ThrowOnFailure(
-                hierarchy.GetProperty(
-                    itemId,
-                    (int)__VSHPROPID.VSHPROPID_ExtObject,
-                    out project
-                )
-            );
-
-            return (project as EnvDTE.ProjectItem);
-        }
-
-#pragma warning disable VSTHRD010 // Only called from ExecuteCommand, which does the thread check
-        private bool FindCodeFileForXaml(ProjectItem projectItem, out ProjectItem codeProjectItem)
-        {
-            codeProjectItem = null;
-            if (projectItem.ProjectItems.Count == 0)
-                return false;
-
-            // Search the project items under the current project item
-            // "MainWindow.axaml" <-- projectItem
-            //   "MainWindow.axaml.cs" <-- projectItem.ProjectItems
-            foreach (ProjectItem pi in projectItem.ProjectItems)
-            {
-                if (IsCodeFile(pi.Name))
-                {
-                    codeProjectItem = pi;
-                    return true;
-                }
-            }
-
-            // TODO: If we reach here, it means VS isn't nesting the files like its suppposed
-            // to:
-            // Project
-            //   MainWindow.axaml
-            //   MainWindow.axaml.cs
-            // We need to find the parent item, and search for it as a sibling
-            // The parent item can be obtained through 'projectItem.Collection.Parent'
-            // which will probably return either a ProjectItem or Project
-            // and then run a search to see where it matches the name and ends in a lang extension
-            // The issue here is how does this handle files with partial classes? Since I don't
-            // have a way to test this (since VS seems to nest normally for me), marking as
-            // a TODO and we'll return false to not handle it
-
-            Log.Logger.Verbose("Attempted to view code for {Document}, but was unable to find nested code file", projectItem.Name);
-
-            return false;
-        }
-#pragma warning restore
 
         private bool IsCodeFile(string name)
         {

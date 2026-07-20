@@ -7,39 +7,30 @@ using dnlib.DotNet;
 
 namespace Avalonia.Ide.CompletionEngine.DnlibMetadataProvider;
 
-internal class AssemblyWrapper : IAssemblyInformation
+internal class AssemblyWrapper(AssemblyDef asm, DnlibMetadataProviderSession session) : IAssemblyInformation
 {
-    private readonly AssemblyDef _asm;
-    private readonly DnlibMetadataProviderSession _session;
-
-    public AssemblyWrapper(AssemblyDef asm, DnlibMetadataProviderSession session)
-    {
-        _asm = asm;
-        _session = session;
-    }
-
-    public string Name => _asm.Name;
+    public string Name => asm.Name;
 
     public string AssemblyName
-        => _asm.GetFullNameWithPublicKeyToken();
+        => asm.GetFullNameWithPublicKeyToken();
 
     public IEnumerable<ITypeInformation> Types
-        => _asm.Modules.SelectMany(m => m.Types).Select(x => TypeWrapper.FromDef(x, _session)).Where(t => t is not null)!;
+        => asm.Modules.SelectMany(m => m.Types).Select(x => TypeWrapper.FromDef(x, session)).Where(t => t is not null)!;
 
     public IEnumerable<ICustomAttributeInformation> CustomAttributes
-        => _asm.CustomAttributes.Select(a => new CustomAttributeWrapper(a));
+        => asm.CustomAttributes.Select(a => new CustomAttributeWrapper(a));
 
     public IEnumerable<string> ManifestResourceNames
-        => _asm.ManifestModule.Resources.Select(r => r.Name.ToString());
+        => asm.ManifestModule.Resources.Select(r => r.Name.ToString());
 
     public IEnumerable<string> InternalsVisibleTo
-        => _asm.GetVisibleTo();
+        => asm.GetVisibleTo();
 
     public Stream GetManifestResourceStream(string name)
-        => _asm.ManifestModule.Resources.FindEmbeddedResource(name).CreateReader().AsStream();
+        => asm.ManifestModule.Resources.FindEmbeddedResource(name).CreateReader().AsStream();
 
     public string PublicKey
-        => _asm.PublicKey.ToString();
+        => asm.PublicKey.ToString();
 
     public override string ToString() => Name;
 }
@@ -53,9 +44,7 @@ internal class TypeWrapper : ITypeInformation
 
     private TypeWrapper(TypeDef type, DnlibMetadataProviderSession session)
     {
-        if (type == null)
-            throw new ArgumentNullException();
-        _type = type;
+        _type = type ?? throw new ArgumentNullException();
         _session = session;
         AssemblyQualifiedName = type.DefinitionAssembly is null
             ? type.FullName
@@ -94,7 +83,7 @@ internal class TypeWrapper : ITypeInformation
     {
         get
         {
-            return _type.Fields.Where(f => f.IsStatic).Select(f => f.Name.String).ToArray();
+            return [.. _type.Fields.Where(f => f.IsStatic).Select(f => f.Name.String)];
         }
     }
     public IEnumerable<string> Pseudoclasses
@@ -112,10 +101,10 @@ internal class TypeWrapper : ITypeInformation
                 if (x.HasConstructorArguments)
                 {
                     return (x.ConstructorArguments[0].Value as IEnumerable<CAArgument>)?
-                            .Select(y => y.Value.ToString()) ?? Enumerable.Empty<string>();
+                            .Select(y => y.Value.ToString()) ?? [];
                 }
 
-                return Enumerable.Empty<string>();
+                return [];
             });
 
             foreach (var ret in selector)
@@ -127,7 +116,7 @@ internal class TypeWrapper : ITypeInformation
     }
     public override string ToString() => Name;
     public IEnumerable<ITypeInformation> NestedTypes =>
-        _type.HasNestedTypes ? _type.NestedTypes.Select(t => new TypeWrapper(t, _session)) : Array.Empty<TypeWrapper>();
+        _type.HasNestedTypes ? _type.NestedTypes.Select(t => new TypeWrapper(t, _session)) : [];
 
     public IEnumerable<(ITypeInformation Type, string Name)> TemplateParts
     {
@@ -147,30 +136,20 @@ internal class TypeWrapper : ITypeInformation
     }
 }
 
-internal class CustomAttributeWrapper : ICustomAttributeInformation
+internal class CustomAttributeWrapper(CustomAttribute attr) : ICustomAttributeInformation
 {
-    private readonly Lazy<IList<IAttributeConstructorArgumentInformation>> _args;
-    public CustomAttributeWrapper(CustomAttribute attr)
-    {
-        TypeFullName = attr.TypeFullName;
-        _args = new Lazy<IList<IAttributeConstructorArgumentInformation>>(() =>
-            attr.ConstructorArguments.Select(
+    private readonly Lazy<IList<IAttributeConstructorArgumentInformation>> _args = new(() =>
+            [.. attr.ConstructorArguments.Select(
                 ca => (IAttributeConstructorArgumentInformation)
-                    new ConstructorArgumentWrapper(ca)).ToList());
-    }
+                    new ConstructorArgumentWrapper(ca))]);
 
-    public string TypeFullName { get; }
+    public string TypeFullName { get; } = attr.TypeFullName;
     public IList<IAttributeConstructorArgumentInformation> ConstructorArguments => _args.Value;
 }
 
-internal class ConstructorArgumentWrapper : IAttributeConstructorArgumentInformation
+internal class ConstructorArgumentWrapper(CAArgument ca) : IAttributeConstructorArgumentInformation
 {
-    public ConstructorArgumentWrapper(CAArgument ca)
-    {
-        Value = ca.Value;
-    }
-
-    public object Value { get; }
+    public object Value { get; } = ca.Value;
 }
 
 internal class PropertyWrapper : IPropertyInformation
@@ -324,25 +303,16 @@ internal class FieldWrapper : IFieldInformation
     public string QualifiedTypeFullName { get; }
 }
 
-internal class EventWrapper : IEventInformation
+internal class EventWrapper(EventDef @event) : IEventInformation
 {
-    public EventWrapper(EventDef @event)
-    {
-        Name = @event.Name;
-        TypeFullName = @event.EventType.FullName;
-        QualifiedTypeFullName = @event.EventType.DefinitionAssembly is null
-            ? @event.EventType.FullName 
+    public string Name { get; } = @event.Name;
+
+    public string TypeFullName { get; } = @event.EventType.FullName;
+    public string QualifiedTypeFullName { get; } = @event.EventType.DefinitionAssembly is null
+            ? @event.EventType.FullName
             : $"{@event.EventType.FullName}, {@event.EventType.DefinitionAssembly.Name}";
-        IsPublic = @event.IsPublic();
-        IsInternal = @event.IsInternal();
-    }
-
-    public string Name { get; }
-
-    public string TypeFullName { get; }
-    public string QualifiedTypeFullName { get; }
-    public bool IsPublic { get; }
-    public bool IsInternal { get; }
+    public bool IsPublic { get; } = @event.IsPublic();
+    public bool IsInternal { get; } = @event.IsInternal();
 }
 
 internal class MethodWrapper : IMethodInformation
@@ -387,8 +357,8 @@ internal class ParameterWrapper : IParameterInformation
     public ParameterWrapper(Parameter param)
     {
         _param = param;
-        QualifiedTypeFullName =  _param.Type.DefinitionAssembly is null 
-            ? _param.Type.FullName 
+        QualifiedTypeFullName = _param.Type.DefinitionAssembly is null
+            ? _param.Type.FullName
             : $"{_param.Type.FullName}, {_param.Type.DefinitionAssembly.Name}";
     }
     public string TypeFullName => _param.Type.FullName;

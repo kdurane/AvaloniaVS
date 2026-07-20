@@ -17,7 +17,7 @@ namespace AvaloniaVS.Shared.Views
     {
         private readonly IConnectionPoint _connectionPoint;
         private readonly uint _cookie;
-        private readonly Guid _xmlLanguageServiceGuid = new Guid("f6819a78-a205-47b5-be1c-675b3c7f0b8e");
+        private readonly Guid _xmlLanguageServiceGuid = new("f6819a78-a205-47b5-be1c-675b3c7f0b8e");
         private readonly IVsTextLines _textLines;
         private readonly string _fileName;
         private readonly IComponentModel _componentModel;
