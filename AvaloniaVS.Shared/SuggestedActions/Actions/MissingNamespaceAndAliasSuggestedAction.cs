@@ -15,9 +15,9 @@ namespace AvaloniaVS.Shared.SuggestedActions.Actions
     {
         private readonly ITrackingSpan _span;
         private readonly ITextSnapshot _snapshot;
-        private readonly string _namespaceAlias;
         private readonly string _targetClassName;
-        private readonly KeyValuePair<string, string> _targetClassMetadata;
+        private readonly string _namespaceValue;
+        private readonly string _namespaceAlias;
         private readonly IWpfDifferenceViewerFactoryService _diffFactory;
         private readonly IDifferenceBufferFactoryService _diffBufferFactory;
         private readonly ITextBufferFactoryService _bufferFactory;
@@ -25,19 +25,14 @@ namespace AvaloniaVS.Shared.SuggestedActions.Actions
         private readonly ITextViewRoleSet _previewRoleSet;
 
         public MissingNamespaceAndAliasSuggestedAction(ITrackingSpan span, IWpfDifferenceViewerFactoryService diffFactory,
-            IDifferenceBufferFactoryService diffBufferFactory, ITextBufferFactoryService bufferFactory, ITextEditorFactoryService textEditorFactoryService, 
-            IReadOnlyDictionary<string, string> inverseNamespaces, Dictionary<string, string> aliases)
+            IDifferenceBufferFactoryService diffBufferFactory, ITextBufferFactoryService bufferFactory, ITextEditorFactoryService textEditorFactoryService,
+            string targetClassName, string namespaceValue, Dictionary<string, string> aliases)
         {
             _span = span;
             _snapshot = _span.TextBuffer.CurrentSnapshot;
-            _targetClassName = _span.GetText(_snapshot);
-            _targetClassMetadata = inverseNamespaces.FirstOrDefault(x => x.Key.Split('.').Last() == _targetClassName);
-
-            // _targetClassMetadata.Value is the namespace of the control we are trying to add the namespace to. 
-            // It is usually in the format using:MyNamespace.Something.
-            // So to get the prefix for the control we are splitting it by ':'
-            // Then taking the MyNamespace.Something part and splitting it by '.' and getting Something.
-            _namespaceAlias = _targetClassMetadata.Value.Split(':').Last().Split('.').Last();
+            _targetClassName = targetClassName;
+            _namespaceValue = namespaceValue;
+            _namespaceAlias = namespaceValue.Split(':').Last().Split('.').Last().Split('/').Last();
             DisplayText = $"Add xmlns {_namespaceAlias}";
             _diffFactory = diffFactory;
             _diffBufferFactory = diffBufferFactory;
@@ -48,31 +43,27 @@ namespace AvaloniaVS.Shared.SuggestedActions.Actions
 
         public string DisplayText { get; }
 
-
         public Task<object> GetPreviewAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult<object>(PreviewProvider.GetPreview(_bufferFactory, _span, _diffBufferFactory, _diffFactory, _previewRoleSet, ApplySuggestion));
-        }
+            => Task.FromResult<object>(PreviewProvider.GetPreview(_bufferFactory, _span, _diffBufferFactory, _diffFactory, _previewRoleSet, ApplySuggestion));
 
         public void Invoke(CancellationToken cancellationToken)
         {
-            if (cancellationToken.IsCancellationRequested)
+            if (!cancellationToken.IsCancellationRequested)
             {
-                return;
+                ApplySuggestion(_span.TextBuffer);
             }
-            ApplySuggestion(_span.TextBuffer);
         }
 
         private void ApplySuggestion(ITextBuffer buffer)
         {
-            var lastNs = _aliases.Last().Value;
-
+            var lastNs = _aliases.LastOrDefault().Value;
             buffer.Replace(_span.GetSpan(_snapshot), $"{_namespaceAlias.ToLower()}:{_targetClassName}");
 
-            // We get the index of the last namespace in the list and add the last namespace length without quotes and add 2.
-            // One for qutation mark and one to place the new namespace in an empty space.
-            buffer.Insert(buffer.CurrentSnapshot.GetText().IndexOf(lastNs) + lastNs.Length + 2, $"xmlns:{_namespaceAlias.ToLower()}=\"{_targetClassMetadata.Value}\"");
-        }
+            var insertionPoint = lastNs is not null
+                ? buffer.CurrentSnapshot.GetText().IndexOf(lastNs) + lastNs.Length + 2
+                : buffer.CurrentSnapshot.GetText().IndexOf('>'); // fallback: no existing aliases to anchor on
 
+            buffer.Insert(insertionPoint, $"xmlns:{_namespaceAlias.ToLower()}=\"{_namespaceValue}\"");
+        }
     }
 }

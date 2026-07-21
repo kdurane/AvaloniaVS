@@ -17,9 +17,13 @@ namespace AvaloniaVS.Shared.IntelliSense
         private readonly IClassificationType _type;
         private readonly IClassificationType _property;
         private readonly IClassificationType _attachedProperty;
-        private readonly IClassificationType _markupExtension;
+        // private readonly IClassificationType _markupExtension;
         private readonly IClassificationType _comment;
         private readonly IClassificationType _namespacePrefix;
+        private readonly IClassificationType _markupExtension1;
+        private readonly IClassificationType _markupExtension2;
+        private readonly IClassificationType _markupExtension3;
+        private readonly IClassificationType[] _extensionLevels;
 
         private ITextSnapshot _cachedSnapshot;
         private List<TagSpan<ClassificationTag>> _cachedTags;
@@ -27,8 +31,8 @@ namespace AvaloniaVS.Shared.IntelliSense
         private static readonly Regex s_fullCommentRegex = new(@"<!--.*?-->", RegexOptions.Compiled | RegexOptions.Singleline);
         private static readonly Regex s_extensionPropertyRegex = new(@"\b(?<prop>[A-Za-z_][\w]*)\s*=", RegexOptions.Compiled);
         private static readonly HashSet<string> s_typeValuedAttributes = ["x:Class", "x:DataType", "x:TypeArguments"];
-        private static readonly HashSet<string> s_markupExtensions =
-            ["Binding", "StaticResource", "DynamicResource", "TemplateBinding", "x:Static", "x:Type", "x:Null"];
+        private static readonly HashSet<string> s_markupExtensions = ["Binding", "StaticResource", "DynamicResource", "TemplateBinding", "x:Static", "x:Type", "x:Null"];
+        private static readonly HashSet<string> s_typedFirstArgExtensions = ["x:Static", "x:Type", "x:Null", "TemplateBinding"];
 
         public XamlClassificationTagger(ITextBuffer buffer, IClassificationTypeRegistryService registry)
         {
@@ -36,9 +40,12 @@ namespace AvaloniaVS.Shared.IntelliSense
             _type = registry.GetClassificationType(PredefinedClassificationTypeNames.Type);
             _property = registry.GetClassificationType(PredefinedClassificationTypeNames.MarkupAttribute);
             _attachedProperty = registry.GetClassificationType(PredefinedClassificationTypeNames.MarkupNode);
-            _markupExtension = registry.GetClassificationType(XamlClassificationTypeNames.MarkupExtension);
             _comment = registry.GetClassificationType(PredefinedClassificationTypeNames.Comment);
-            _namespacePrefix = registry.GetClassificationType(XamlClassificationTypeNames.NamespacePrefix);
+            _namespacePrefix = registry.GetClassificationType(PredefinedClassificationTypeNames.MarkupAttributeValue);
+            _markupExtension1 = registry.GetClassificationType(XamlClassificationTypeNames.MarkupExtension);
+            _markupExtension2 = registry.GetClassificationType(PredefinedClassificationTypeNames.BracePairLevelTwo);
+            _markupExtension3 = registry.GetClassificationType(PredefinedClassificationTypeNames.BracePairLevelThree);
+            _extensionLevels = [_markupExtension1, _markupExtension2, _markupExtension3];
 
             _buffer.ChangedLowPriority += OnBufferChanged;
         }
@@ -183,41 +190,83 @@ namespace AvaloniaVS.Shared.IntelliSense
             }
 
             var rawValue = text.AsSpan(start, end - start);
-            var value = TrimAttributeQuotes(text.AsSpan(start, end - start));
-            var extension = GetMarkupExtension(value);
+            var leadingQuote = rawValue.Length > 0 && (rawValue[0] == '"' || rawValue[0] == '\'') ? 1 : 0;
+            var value = TrimAttributeQuotes(rawValue);
+            var valueStart = start + leadingQuote;
 
-            if (extension != null)
+            if (value.Length > 0 && value[0] == '{')
             {
-                var extensionOffset = rawValue.IndexOf(extension.AsSpan());
-                var extensionStart = start + extensionOffset;
+                ClassifyMarkupExtension(tags, snapshot, text, valueStart, valueStart + value.Length, depth: 0);
+            }
+        }
 
-                tags.Add(MakeTag(snapshot, extensionStart, extensionStart + extension.Length, _markupExtension));
+        private void ClassifyMarkupExtension(List<TagSpan<ClassificationTag>> tags, ITextSnapshot snapshot, string text, int start, int end, int depth)
+        {
+            var span = text.AsSpan(start, end - start);
+            var extension = GetMarkupExtension(span);
+            if (extension == null)
+                return;
 
-                var braceOpen = rawValue.IndexOf('{');
-                var braceClose = braceOpen >= 0 ? FindMatchingBrace(rawValue, braceOpen) : -1;
+            var extNameStart = start + 1; // past '{'
+            var levelType = _extensionLevels[depth % _extensionLevels.Length];
+            tags.Add(MakeTag(snapshot, extNameStart, extNameStart + extension.Length, levelType));
 
-                if (braceOpen >= 0)
+            var braceClose = FindMatchingBrace(span, 0);
+            if (braceClose <= 0)
+                return;
+
+            var innerStart = start + extNameStart - start + extension.Length + 1; // after "{Name "
+                                                                                  // simpler: recompute from span directly
+            var afterName = 1 + extension.Length;
+            while (afterName < span.Length && span[afterName] == ' ')
+                afterName++;
+
+            ClassifyExtensionMembers(tags, snapshot, text, start + afterName, start + braceClose, extension, depth);
+        }
+
+        private void ClassifyExtensionMembers(List<TagSpan<ClassificationTag>> tags, ITextSnapshot snapshot, string text, int innerStart, int innerEnd, string parentExtension, int depth)
+        {
+            var inner = text.AsSpan(innerStart, innerEnd - innerStart);
+            var segments = SplitTopLevelSegments(inner); // comma split, brace/quote aware
+
+            for (var idx = 0; idx < segments.Count; idx++)
+            {
+                var (segStart, segEnd) = segments[idx];
+                if (segEnd <= segStart)
+                    continue;
+
+                var seg = inner[segStart..segEnd];
+                var lead = 0;
+                while (lead < seg.Length && char.IsWhiteSpace(seg[lead]))
+                    lead++;
+                var trimmed = seg[lead..];
+                var absStart = innerStart + segStart + lead;
+                if (trimmed.Length == 0)
+                    continue;
+
+                var eq = FindTopLevelEquals(trimmed); // '=' not inside nested {} or quotes
+
+                if (eq > 0)
                 {
-                    if (braceClose > braceOpen)
-                    {
-                        ClassifyExtensionProperties(tags, snapshot, text, start + braceOpen + 1, start + braceClose);
+                    var prop = trimmed[..eq].TrimEnd();
+                    tags.Add(MakeTag(snapshot, absStart, absStart + prop.Length, _attachedProperty));
 
-                        if (extension == "x:Type" || extension == "TemplateBinding")
-                        {
-                            var argStart = extensionOffset + extension.Length;
-                            while (argStart < rawValue.Length && rawValue[argStart] == ' ')
-                                argStart++;
+                    var valSpan = trimmed[(eq + 1)..];
+                    var valLead = 0;
+                    while (valLead < valSpan.Length && char.IsWhiteSpace(valSpan[valLead]))
+                        valLead++;
+                    var value = valSpan[valLead..];
+                    var valStart = absStart + eq + 1 + valLead;
 
-                            var argEnd = argStart;
-                            while (argEnd < rawValue.Length && rawValue[argEnd] != '}' && rawValue[argEnd] != ',' && rawValue[argEnd] != ' ')
-                                argEnd++;
-
-                            if (argEnd > argStart)
-                            {
-                                ClassifyTypeReference(tags, snapshot, text, start + argStart, start + argEnd);
-                            }
-                        }
-                    }
+                    if (value.Length > 0 && value[0] == '{')
+                        ClassifyMarkupExtension(tags, snapshot, text, valStart, valStart + value.Length, depth + 1);
+                }
+                else if (idx == 0)
+                {
+                    if (trimmed[0] == '{')
+                        ClassifyMarkupExtension(tags, snapshot, text, absStart, absStart + trimmed.Length, depth + 1);
+                    else if (s_typedFirstArgExtensions.Contains(parentExtension))
+                        ClassifyTypeReference(tags, snapshot, text, absStart, absStart + trimmed.Length);
                 }
             }
         }
@@ -319,6 +368,103 @@ namespace AvaloniaVS.Shared.IntelliSense
                         return i;
                 }
             }
+            return -1;
+        }
+
+        /// <summary>
+        /// Splits a comma-separated list of extension members, respecting nested
+        /// {} braces and "..."/'...' quoted strings so commas inside those don't split.
+        /// Returns (start, end) offsets relative to the start of `value`.
+        /// </summary>
+        private static List<(int Start, int End)> SplitTopLevelSegments(ReadOnlySpan<char> value)
+        {
+            var segments = new List<(int Start, int End)>();
+            var depth = 0;
+            char? quote = null;
+            var segStart = 0;
+
+            for (var i = 0; i < value.Length; i++)
+            {
+                var c = value[i];
+
+                if (quote != null)
+                {
+                    if (c == quote)
+                        quote = null;
+                    continue;
+                }
+
+                switch (c)
+                {
+                    case '"':
+                    case '\'':
+                        quote = c;
+                        break;
+                    case '{':
+                        depth++;
+                        break;
+                    case '}':
+                        if (depth > 0)
+                            depth--;
+                        break;
+                    case ',' when depth == 0:
+                        segments.Add((segStart, i));
+                        segStart = i + 1;
+                        break;
+                }
+            }
+
+            if (segStart < value.Length)
+            {
+                segments.Add((segStart, value.Length));
+            }
+            else if (segments.Count == 0)
+            {
+                segments.Add((0, value.Length));
+            }
+
+            return segments;
+        }
+
+        /// <summary>
+        /// Finds the index of a top-level '=' (property assignment) in an extension
+        /// member segment, ignoring '=' inside nested {} braces or quoted strings.
+        /// Returns -1 if none found (i.e. this segment is a positional argument).
+        /// </summary>
+        private static int FindTopLevelEquals(ReadOnlySpan<char> segment)
+        {
+            var depth = 0;
+            char? quote = null;
+
+            for (var i = 0; i < segment.Length; i++)
+            {
+                var c = segment[i];
+
+                if (quote != null)
+                {
+                    if (c == quote)
+                        quote = null;
+                    continue;
+                }
+
+                switch (c)
+                {
+                    case '"':
+                    case '\'':
+                        quote = c;
+                        break;
+                    case '{':
+                        depth++;
+                        break;
+                    case '}':
+                        if (depth > 0)
+                            depth--;
+                        break;
+                    case '=' when depth == 0:
+                        return i;
+                }
+            }
+
             return -1;
         }
     }

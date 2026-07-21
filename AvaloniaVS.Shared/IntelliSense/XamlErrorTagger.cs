@@ -26,6 +26,7 @@ namespace AvaloniaVS.IntelliSense
         private ExceptionDetails _error;
         private TagSpan<IErrorTag> _tagSpan;
         private ITableDataSink _sink;
+        public ExceptionDetails CurrentError => _error;
 
         public XamlErrorTagger(
             ITableManagerProvider tableManagerProvider,
@@ -104,27 +105,9 @@ namespace AvaloniaVS.IntelliSense
         {
             if (_tagSpan is null)
             {
-                if (_error is { LineNumber: not null } error)
+                if (TryGetErrorSpan() is { } span)
                 {
-                    var line = error.LineNumber.Value - 1;
-                    var col = (error.LinePosition ?? 1) - 1;
-
-                    if (line < 0 || line >= _buffer.CurrentSnapshot.LineCount || col < 0)
-                    {
-                        return default;
-                    }
-
-                    var snapshotline = _buffer.CurrentSnapshot.GetLineFromLineNumber(line);
-
-                    if (snapshotline.Start.Position + col >= snapshotline.Snapshot.Length)
-                    {
-                        return default;
-                    }
-
-                    var start = snapshotline.Start + col;
-                    var startSpan = new SnapshotSpan(start, start + 1);
-                    var span = _navigator.GetSpanOfFirstChild(startSpan);
-                    var tag = new ErrorTag(PredefinedErrorTypeNames.CompilerError, error.Message);
+                    var tag = new ErrorTag(PredefinedErrorTypeNames.CompilerError, _error.Message);
 
                     if (!spans.IntersectsWith(span))
                     {
@@ -132,9 +115,9 @@ namespace AvaloniaVS.IntelliSense
                     }
 
                     _tagSpan = new(span, tag);
-
                 }
             }
+
             return _tagSpan;
         }
 
@@ -181,6 +164,36 @@ namespace AvaloniaVS.IntelliSense
             var dte2 = (DTE2)Package.GetGlobalService(typeof(SDTE));
             var projItem = dte2?.Solution.FindProjectItem(fileName);
             return projItem?.ContainingProject;
+        }
+
+        /// <summary>
+        /// Computes the span of the current error independently of the tagging cache,
+        /// so callers (like suggested actions) don't depend on GetTags having run for this span yet.
+        /// </summary>
+        public SnapshotSpan? TryGetErrorSpan()
+        {
+            if (_error is { LineNumber: not null } error)
+            {
+                var line = error.LineNumber.Value - 1;
+                var col = (error.LinePosition ?? 1) - 1;
+
+                if (line < 0 || line >= _buffer.CurrentSnapshot.LineCount || col < 0)
+                {
+                    return null;
+                }
+
+                var snapshotLine = _buffer.CurrentSnapshot.GetLineFromLineNumber(line);
+
+                if (snapshotLine.Start.Position + col >= snapshotLine.Snapshot.Length)
+                {
+                    return null;
+                }
+
+                var start = snapshotLine.Start + col;
+                var startSpan = new SnapshotSpan(start, start + 1);
+                return _navigator.GetSpanOfFirstChild(startSpan);
+            }
+            return null;
         }
     }
 }

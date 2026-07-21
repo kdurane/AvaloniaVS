@@ -835,7 +835,10 @@ namespace AvaloniaVS.Views
             }
             else
             {
-                HorizontalGrid();
+                if (SplitOrientation == Orientation.Horizontal)
+                    HorizontalGrid();
+                else
+                    VerticalGrid();
                 previewRow.Height = View == AvaloniaDesignerView.Design ? s_oneStar : s_zeroStar;
                 codeRow.Height = View == AvaloniaDesignerView.Source ? s_oneStar : s_zeroStar;
                 splitter.Visibility = Visibility.Collapsed;

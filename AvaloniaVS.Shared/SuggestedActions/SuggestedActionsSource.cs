@@ -37,44 +37,42 @@ namespace AvaloniaVS.Shared.SuggestedActions
         public IEnumerable<SuggestedActionSet> GetSuggestedActions(ISuggestedActionCategorySet requestedActionCategories, SnapshotSpan range,
             CancellationToken cancellationToken)
         {
-            var availableSuggestedActions = SuggestedActionsAreAvailable(range);
-            if (TryGetWordUnderCaret(out var extent) && (availableSuggestedActions.Item1 || availableSuggestedActions.Item2 || availableSuggestedActions.Item3))
+            var availability = SuggestedActionsAreAvailable(range);
+            if (!availability.NeedsNamespaceAndAlias && !availability.NeedsAliasOnly && !availability.NeedsNamespaceOnly)
             {
-                extent.Span.Snapshot.TextBuffer.Properties.TryGetProperty<XamlBufferMetadata>(typeof(XamlBufferMetadata), out var metadata);
-                var trackingSpan = range.Snapshot.CreateTrackingSpan(extent.Span, SpanTrackingMode.EdgeInclusive);
-                ISuggestedAction suggestedAction = null;
-                if (availableSuggestedActions.Item1)
-                {
-                    suggestedAction = new MissingNamespaceAndAliasSuggestedAction(trackingSpan, _diffFactory, _diffBufferFactory, _bufferFactory, _textEditorFactoryService,
-    metadata.CompletionMetadata.InverseNamespace, CompletionEngine.GetNamespaceAliases(extent.Span.Snapshot.TextBuffer.CurrentSnapshot.GetText()));
-                }
-                else if (availableSuggestedActions.Item2)
-                {
-                    suggestedAction = new MissingAliasSuggestedAction(trackingSpan, _diffFactory, _diffBufferFactory, _bufferFactory, _textEditorFactoryService,
-    metadata.CompletionMetadata.InverseNamespace);
-                }
-                else if (availableSuggestedActions.Item3)
-                {
-                    HasAlias(out var alias);
-                    suggestedAction = new MissingNamespaceSuggestedAction(trackingSpan, _diffFactory, _diffBufferFactory, _bufferFactory, _textEditorFactoryService,
-    metadata.CompletionMetadata.InverseNamespace, CompletionEngine.GetNamespaceAliases(extent.Span.Snapshot.TextBuffer.CurrentSnapshot.GetText()), alias);
-                }
-#pragma warning disable CS0618 // Type or member is obsolete
-                return [new SuggestedActionSet([suggestedAction])];
-#pragma warning restore CS0618 // Type or member is obsolete
+                return [];
             }
-            return [];
+
+            TryGetWordUnderCaret(out var extent);
+            var trackingSpan = range.Snapshot.CreateTrackingSpan(extent.Span, SpanTrackingMode.EdgeInclusive);
+
+            ISuggestedAction suggestedAction = availability switch
+            {
+                { NeedsNamespaceAndAlias: true } => new MissingNamespaceAndAliasSuggestedAction(
+                    trackingSpan, _diffFactory, _diffBufferFactory, _bufferFactory, _textEditorFactoryService,
+                    availability.TargetClassName, availability.NamespaceValue,
+                    CompletionEngine.GetNamespaceAliases(extent.Span.Snapshot.TextBuffer.CurrentSnapshot.GetText())),
+
+                { NeedsAliasOnly: true } => new MissingAliasSuggestedAction(
+                    trackingSpan, _diffFactory, _diffBufferFactory, _bufferFactory, _textEditorFactoryService,
+                    availability.TargetClassName, availability.NamespaceValue),
+
+                { NeedsNamespaceOnly: true } => new MissingNamespaceSuggestedAction(
+                    trackingSpan, _diffFactory, _diffBufferFactory, _bufferFactory, _textEditorFactoryService,
+                    availability.NamespaceValue,
+                    CompletionEngine.GetNamespaceAliases(extent.Span.Snapshot.TextBuffer.CurrentSnapshot.GetText()),
+                    availability.ExistingAlias),
+
+                _ => null
+            };
+
+            return suggestedAction is null ? [] : [new SuggestedActionSet("Any", [suggestedAction])];
         }
 
         public Task<bool> HasSuggestedActionsAsync(ISuggestedActionCategorySet requestedActionCategories, SnapshotSpan range, CancellationToken cancellationToken)
         {
-            var availableSuggestedActions = SuggestedActionsAreAvailable(range);
-            if (availableSuggestedActions.Item1 || availableSuggestedActions.Item2 || availableSuggestedActions.Item3)
-            {
-                return Task.FromResult(true);
-            }
-
-            return Task.FromResult(false);
+            var availability = SuggestedActionsAreAvailable(range);
+            return Task.FromResult(availability.NeedsNamespaceAndAlias || availability.NeedsAliasOnly || availability.NeedsNamespaceOnly);
         }
 
         public bool TryGetTelemetryId(out Guid telemetryId)
@@ -99,10 +97,59 @@ namespace AvaloniaVS.Shared.SuggestedActions
             }
 
             var navigator = _factory.NavigatorService.GetTextStructureNavigator(_textBuffer);
-
             wordExtent = navigator.GetExtentOfWord(point);
+
+            // If the caret landed on a namespace prefix (word immediately followed by ':'),
+            // resolve to the class name that follows the colon instead - this is the case
+            // where the squiggle/caret sits on "nidea" in "nidea:WindowTopbar" rather than
+            // directly on "WindowTopbar".
+            var snapshot = wordExtent.Span.Snapshot;
+            var afterWord = wordExtent.Span.End;
+            if (afterWord.Position < snapshot.Length && snapshot[afterWord.Position] == ':')
+            {
+                var afterColon = afterWord + 1;
+                if (afterColon.Position < snapshot.Length)
+                {
+                    wordExtent = navigator.GetExtentOfWord(afterColon);
+                }
+            }
+
             return true;
         }
+
+        private readonly struct SuggestedActionAvailability(
+            bool needsNamespaceAndAlias, bool needsAliasOnly, bool needsNamespaceOnly,
+            string targetClassName, string namespaceValue, string existingAlias)
+        {
+            public bool NeedsNamespaceAndAlias { get; } = needsNamespaceAndAlias;
+            public bool NeedsAliasOnly { get; } = needsAliasOnly;
+            public bool NeedsNamespaceOnly { get; } = needsNamespaceOnly;
+            public string TargetClassName { get; } = targetClassName;
+            public string NamespaceValue { get; } = namespaceValue;
+            public string ExistingAlias { get; } = existingAlias;
+        }
+
+        private static bool TryFindPreferredNamespace(Metadata metadata, string className, out string namespaceValue)
+        {
+            var matches = metadata.Namespaces
+                .Where(ns => ns.Value.ContainsKey(className))
+                .Select(ns => ns.Key)
+                .ToList();
+
+            if (matches.Count == 0)
+            {
+                namespaceValue = null;
+                return false;
+            }
+
+            // A type can legitimately be registered under more than one namespace string
+            // (e.g. XmlnsDefinitionAttribute mapping several CLR namespaces to one public
+            // xmlns URI). Prefer the friendly URI form over the raw clr-namespace/using: fallback,
+            // rather than whichever happened to be registered last during the metadata scan.
+            namespaceValue = matches.FirstOrDefault(ns => ns.Contains("://")) ?? matches[0];
+            return true;
+        }
+
 
 
         /// <returns>
@@ -110,42 +157,52 @@ namespace AvaloniaVS.Shared.SuggestedActions
         /// Second one defines whether MissingAliasSuggestedAction should be applied.
         /// Third one defines whether MissingNamespaceSuggestedAction should be applied.
         /// </returns>
-        private (bool, bool, bool) SuggestedActionsAreAvailable(SnapshotSpan range)
+        private SuggestedActionAvailability SuggestedActionsAreAvailable(SnapshotSpan range)
         {
-            if (TryGetWordUnderCaret(out var extent))
+            if (!TryGetWordUnderCaret(out var extent))
             {
-                var span = range.Snapshot.CreateTrackingSpan(extent.Span, SpanTrackingMode.EdgeInclusive);
-                var snapshot = span.TextBuffer.CurrentSnapshot;
-                var targetClassName = span.GetText(snapshot);
-                span.TextBuffer.Properties.TryGetProperty<XamlBufferMetadata>(typeof(XamlBufferMetadata), out var metadata);
-                if (metadata == null || metadata.CompletionMetadata?.InverseNamespace == null)
-                {
-                    return (false, false, false);
-                }
-                var targetClassMetadata = metadata.CompletionMetadata.InverseNamespace.FirstOrDefault(x => x.Key.Split('.').Last() == targetClassName);
-
-                // Exclude all classes from avaloniaui namespace because controls from this namespace are included by default.
-                if (targetClassMetadata.Value != null && targetClassMetadata.Key != null && !metadata.CompletionMetadata.Namespaces.First(x => x.Key == "https://github.com/avaloniaui").Value.ContainsKey(targetClassName))
-                {
-                    if (!CompletionEngine.GetNamespaceAliases(span.TextBuffer.CurrentSnapshot.GetText()).ContainsValue(targetClassMetadata.Value))
-                    {
-                        if (!HasAlias(out var _))
-                        {
-                            return (true, false, false);
-                        }
-                        else
-                        {
-                            return (false, false, true);
-                        }
-                    }
-                    else if (!HasAlias(out var _))
-                    {
-                        return (false, true, false);
-                    }
-                }
-
+                return default;
             }
-            return (false, false, false);
+
+            var span = range.Snapshot.CreateTrackingSpan(extent.Span, SpanTrackingMode.EdgeInclusive);
+            var snapshot = span.TextBuffer.CurrentSnapshot;
+            var targetClassName = span.GetText(snapshot);
+
+            span.TextBuffer.Properties.TryGetProperty<XamlBufferMetadata>(typeof(XamlBufferMetadata), out var bufferMetadata);
+            if (bufferMetadata?.CompletionMetadata is not { } metadata)
+            {
+                return default;
+            }
+
+            if (!TryFindPreferredNamespace(metadata, targetClassName, out var namespaceValue))
+            {
+                return default;
+            }
+
+            // Exclude built-in Avalonia controls - these are included by default and never need a fix.
+            if (metadata.Namespaces.TryGetValue("https://github.com/avaloniaui", out var avaloniaTypes)
+                && avaloniaTypes.ContainsKey(targetClassName))
+            {
+                return default;
+            }
+
+            var documentText = span.TextBuffer.CurrentSnapshot.GetText();
+            var existingAliases = CompletionEngine.GetNamespaceAliases(documentText);
+            var namespaceAlreadyAliased = existingAliases.ContainsValue(namespaceValue);
+            var hasAlias = HasAlias(out var currentAlias);
+
+            if (!namespaceAlreadyAliased)
+            {
+                return hasAlias
+                    ? new SuggestedActionAvailability(false, false, true, targetClassName, namespaceValue, currentAlias)
+                    : new SuggestedActionAvailability(true, false, false, targetClassName, namespaceValue, null);
+            }
+            else if (!hasAlias)
+            {
+                return new SuggestedActionAvailability(false, true, false, targetClassName, namespaceValue, null);
+            }
+
+            return default;
         }
 
         private bool HasAlias(out string alias)
