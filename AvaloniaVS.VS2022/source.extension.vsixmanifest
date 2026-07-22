@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="AxamlPreviwer" Version="11.9.2" Language="en-GB" Publisher="Avalonia Team" />
+    <Identity Id="AxamlPreviwer" Version="11.9.2" Language="en-GB" Publisher="kdurane" />
     <DisplayName>Axaml Previwer</DisplayName>
     <Description xml:space="preserve">Previewer Axaml</Description>
     <Icon>icon.ico</Icon>

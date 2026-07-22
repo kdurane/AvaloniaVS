@@ -38,6 +38,13 @@
     <Compile Include="$(MSBuildThisFileDirectory)Models\ProjectInfo.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\ProjectOutputInfo.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\XamlBufferMetadata.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Navigation\AxamlGoToDefinitionCommandFilter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Navigation\AxamlNavigableSymbol.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Navigation\AxamlSymbolTarget.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Navigation\AxamlTextViewListener.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Navigation\IXamlTypeResolutionService.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Navigation\RoslynSymbolNavigator.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Navigation\XamlTypeResolutionService.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ProjectSystem\AvaloniaProject.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ServiceProviderExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\AnalyticsService.cs" />
