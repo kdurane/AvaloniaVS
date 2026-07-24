@@ -8,11 +8,7 @@ using Microsoft.VisualStudio.Text;
 
 namespace AvaloniaVS.Shared.IntelliSense
 {
-    internal class AddNamespaceSuggestedAction(
-        ITextBuffer buffer,
-        string prefix,
-        string namespaceValue,
-        int insertionPoint) : ISuggestedAction
+    internal class AddNamespaceSuggestedAction(ITextBuffer buffer, string prefix, string namespaceValue, int insertionPoint) : ISuggestedAction
     {
         public string DisplayText => $"Add xmlns:{prefix}=\"{namespaceValue}\"";
         public string IconAutomationText => null;

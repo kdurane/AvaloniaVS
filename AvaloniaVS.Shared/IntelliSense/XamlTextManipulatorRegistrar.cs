@@ -38,22 +38,34 @@ namespace AvaloniaVS.IntelliSense
                     metadata.CompletionMetadata != null)
                 {
                     var sw = Stopwatch.StartNew();
-                    var pos = _textView.Caret.Position.BufferPosition;
-                    var text = _buffer.CurrentSnapshot.GetText();
 
-
-                    foreach (Microsoft.VisualStudio.Text.ITextChange change in e.Changes.ToList())
+                    foreach (var change in e.Changes.ToList())
                     {
+                        // Re-fetch text and recompute the change's position against the
+                        // *current* snapshot on every iteration, since an earlier
+                        // manipulation in this same loop may have already edited the buffer.
+                        var currentSnapshot = _buffer.CurrentSnapshot;
+                        var text = currentSnapshot.GetText();
+
                         var textManipulator = new TextManipulator(text, change.NewPosition);
                         var avaloniaChange = new TextChangeAdapter(change);
                         var manipulations = textManipulator.ManipulateText(avaloniaChange);
+
                         if (manipulations?.Count > 0)
                         {
                             _isChangingText = true;
-                            ApplyManipulations(manipulations);
-                            Log.Logger.Verbose("XAML manipulation took {Time}", sw.Elapsed);
+                            try
+                            {
+                                ApplyManipulations(manipulations);
+                                Log.Logger.Verbose("XAML manipulation took {Time}", sw.Elapsed);
+                            }
+                            finally
+                            {
+                                _isChangingText = false;
+                            }
                         }
                     }
+
                     sw.Stop();
                 }
             }

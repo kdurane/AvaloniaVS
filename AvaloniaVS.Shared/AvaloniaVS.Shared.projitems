@@ -32,6 +32,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlErrorTagger.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlErrorTaggerProvider.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)intellisense\XamlPasteCommandHandler.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlQuickInfoSource.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlQuickInfoSourceProvider.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlTextManipulatorRegistrar.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IntelliSense\XamlTextViewCreationListener.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\DesignerRunTarget.cs" />
@@ -57,6 +59,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Services\SolutionService.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\Throttle.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Services\VsProjectAssembliesProvider.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Services\XmlDocCache.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SuggestedActions\Actions\Base\BaseSuggestedAction.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SuggestedActions\Actions\MissingAliasSuggestedAction.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SuggestedActions\Actions\MissingNamespaceAndAliasSuggestedAction.cs" />

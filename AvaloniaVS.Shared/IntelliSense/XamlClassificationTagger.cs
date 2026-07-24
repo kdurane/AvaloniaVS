@@ -17,7 +17,6 @@ namespace AvaloniaVS.Shared.IntelliSense
         private readonly IClassificationType _type;
         private readonly IClassificationType _property;
         private readonly IClassificationType _attachedProperty;
-        // private readonly IClassificationType _markupExtension;
         private readonly IClassificationType _comment;
         private readonly IClassificationType _namespacePrefix;
         private readonly IClassificationType _markupExtension1;
@@ -31,7 +30,8 @@ namespace AvaloniaVS.Shared.IntelliSense
         private static readonly Regex s_fullCommentRegex = new(@"<!--.*?-->", RegexOptions.Compiled | RegexOptions.Singleline);
         private static readonly Regex s_extensionPropertyRegex = new(@"\b(?<prop>[A-Za-z_][\w]*)\s*=", RegexOptions.Compiled);
         private static readonly HashSet<string> s_typeValuedAttributes = ["x:Class", "x:DataType", "x:TypeArguments"];
-        private static readonly HashSet<string> s_markupExtensions = ["Binding", "StaticResource", "DynamicResource", "TemplateBinding", "x:Static", "x:Type", "x:Null"];
+        private static readonly HashSet<string> s_markupExtensions = 
+            ["Binding", "StaticResource", "DynamicResource", "TemplateBinding", "x:Static", "x:Type", "x:Null", "OnPlatform", "OnFormFactor"];
         private static readonly HashSet<string> s_typedFirstArgExtensions = ["x:Static", "x:Type", "x:Null", "TemplateBinding"];
 
         public XamlClassificationTagger(ITextBuffer buffer, IClassificationTypeRegistryService registry)
@@ -43,8 +43,8 @@ namespace AvaloniaVS.Shared.IntelliSense
             _comment = registry.GetClassificationType(PredefinedClassificationTypeNames.Comment);
             _namespacePrefix = registry.GetClassificationType(PredefinedClassificationTypeNames.MarkupAttributeValue);
             _markupExtension1 = registry.GetClassificationType(XamlClassificationTypeNames.MarkupExtension);
-            _markupExtension2 = registry.GetClassificationType(PredefinedClassificationTypeNames.BracePairLevelTwo);
-            _markupExtension3 = registry.GetClassificationType(PredefinedClassificationTypeNames.BracePairLevelThree);
+            _markupExtension2 = registry.GetClassificationType(XamlClassificationTypeNames.MarkupExtension);
+            _markupExtension3 = registry.GetClassificationType(XamlClassificationTypeNames.MarkupExtension);
             _extensionLevels = [_markupExtension1, _markupExtension2, _markupExtension3];
 
             _buffer.ChangedLowPriority += OnBufferChanged;

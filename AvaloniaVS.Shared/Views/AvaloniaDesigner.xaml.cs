@@ -79,7 +79,6 @@ namespace AvaloniaVS.Views
                 new PropertyMetadata("100%", HandleZoomLevelChanged));
 
 
-
         public static string[] ZoomLevels { get; } = AvaloniaVS.ZoomLevels.Levels;
 
 
@@ -642,9 +641,18 @@ namespace AvaloniaVS.Views
         }
 
         private static readonly MetadataReader s_metadataReader = new(new DnlibMetadataProvider());
-        private static ConcurrentDictionary<string, Task<Metadata>> s_metadataCache;
+        private static ConcurrentDictionary<string, Task<(Metadata Metadata, XmlDocCache DocCache)>> s_metadataCache;
         private static bool s_buildEventsSubscribed;
         private static readonly object s_initLock = new();
+
+        // Wraps an already-materialized assembly path list so we can hand the exact same list
+        // to both the completion MetadataReader and XmlDocCache.Build without calling a
+        // (possibly non-idempotent / non-cheap) IAssemblyProvider.GetAssemblies() twice.
+
+        private sealed class StaticAssemblyProvider(IReadOnlyList<string> paths) : IAssemblyProvider
+        {
+            public IEnumerable<string> GetAssemblies() => paths;
+        }
 
         private static async Task CreateCompletionMetadataAsync(string executablePath, Func<IAssemblyProvider> assemblyProviderFunc, XamlBufferMetadata target)
         {
@@ -654,11 +662,14 @@ namespace AvaloniaVS.Views
             {
                 var sw = Stopwatch.StartNew();
 
-                var metadataLoad = s_metadataCache.GetOrAdd(
+                var load = s_metadataCache.GetOrAdd(
                     executablePath,
                     path => LoadMetadataAsync(path, assemblyProviderFunc));
 
-                target.CompletionMetadata = await metadataLoad;
+                var (metadata, docCache) = await load;
+
+                target.CompletionMetadata = metadata;
+                target.DocCache = docCache;
                 target.NeedInvalidation = false;
 
                 sw.Stop();
@@ -674,16 +685,19 @@ namespace AvaloniaVS.Views
             }
         }
 
-        private static async Task<Metadata> LoadMetadataAsync(string executablePath, Func<IAssemblyProvider> assemblyProviderFunc)
+        private static async Task<(Metadata Metadata, XmlDocCache DocCache)> LoadMetadataAsync(string executablePath, Func<IAssemblyProvider> assemblyProviderFunc)
         {
             // TryCreate walks VSProject.References, which requires the UI thread.
-            // Keep this hop, but only pay for it once per cache miss, and hop straight
-            // back off before the actual (slower) metadata read.
+            // Pay this hop once per cache miss, not once per consumer.
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            var assemblyProvider = assemblyProviderFunc();
+            var assemblies = assemblyProviderFunc().GetAssemblies().ToList();
             await TaskScheduler.Default;
 
-            return s_metadataReader.GetForTargetAssembly(assemblyProvider);
+            var metadataTask = Task.Run(() => s_metadataReader.GetForTargetAssembly(new StaticAssemblyProvider(assemblies)));
+            var docCacheTask = Task.Run(() => XmlDocCache.Build(assemblies));
+
+            await Task.WhenAll(metadataTask, docCacheTask);
+            return (await metadataTask, await docCacheTask);
         }
 
         private static void EnsureBuildEventsSubscribed()
@@ -696,13 +710,17 @@ namespace AvaloniaVS.Views
                 if (s_buildEventsSubscribed)
                     return;
 
-                s_metadataCache = new ConcurrentDictionary<string, Task<Metadata>>();
+                s_metadataCache = [];
 
                 ThreadHelper.JoinableTaskFactory.Run(async () =>
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     var dte = (DTE)Package.GetGlobalService(typeof(DTE));
                     dte.Events.BuildEvents.OnBuildBegin += (s, e) => s_metadataCache.Clear();
+                    dte.Events.BuildEvents.OnBuildBegin += (s, e) =>
+                    {
+                        s_metadataCache.Clear();
+                    };
                 });
 
                 s_buildEventsSubscribed = true;
