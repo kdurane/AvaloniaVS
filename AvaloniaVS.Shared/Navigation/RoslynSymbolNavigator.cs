@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.LanguageServices;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 
 namespace AvaloniaVS.Shared.Navigation
 {
@@ -73,15 +74,31 @@ namespace AvaloniaVS.Shared.Navigation
         public static bool NavigateToSymbol(IServiceProvider serviceProvider, ISymbol symbol)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            var sourceLocation = symbol?.Locations.FirstOrDefault();
+            var sourceLocation = symbol?.Locations.FirstOrDefault(l => l.IsInSource);
             if (sourceLocation == null)
+            {
+                if (symbol != null)
+                    ShowStatusBarMessage(serviceProvider, $"No source available for '{symbol.Name}' - it's defined in a referenced assembly.");
                 return false;
+            }
 
             return NavigateToLocation(serviceProvider, sourceLocation);
         }
 
+        public static void ShowStatusBarMessage(IServiceProvider serviceProvider, string message)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (serviceProvider.GetService(typeof(SVsStatusbar)) is IVsStatusbar statusBar)
+            {
+                statusBar.IsFrozen(out int frozen);
+                if (frozen == 0)
+                    statusBar.SetText(message);
+            }
+        }
+
         public static async Task<Location> FindMemberLocationAsync(
-    VisualStudioWorkspace workspace, string rootTypeName, IReadOnlyList<string> pathSegments, CancellationToken cancellationToken)
+            VisualStudioWorkspace workspace, string rootTypeName, IReadOnlyList<string> pathSegments, CancellationToken cancellationToken)
         {
             if (pathSegments.Count == 0)
                 return null;
@@ -185,5 +202,13 @@ namespace AvaloniaVS.Shared.Navigation
             IFieldSymbol f => f.Type,
             _ => null
         };
+
+        public static void ClearStatusBarMessage(IServiceProvider serviceProvider)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (serviceProvider.GetService(typeof(SVsStatusbar)) is IVsStatusbar statusBar)
+                statusBar.Clear();
+        }
     }
 }

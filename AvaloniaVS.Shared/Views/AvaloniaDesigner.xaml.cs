@@ -641,7 +641,7 @@ namespace AvaloniaVS.Views
         }
 
         private static readonly MetadataReader s_metadataReader = new(new DnlibMetadataProvider());
-        private static ConcurrentDictionary<string, Task<(Metadata Metadata, XmlDocCache DocCache)>> s_metadataCache;
+        private static ConcurrentDictionary<string, Task<(Metadata Metadata, XmlDocCache DocCache, IReadOnlyList<string> AssemblyPaths)>> s_metadataCache;
         private static bool s_buildEventsSubscribed;
         private static readonly object s_initLock = new();
 
@@ -666,10 +666,11 @@ namespace AvaloniaVS.Views
                     executablePath,
                     path => LoadMetadataAsync(path, assemblyProviderFunc));
 
-                var (metadata, docCache) = await load;
+                var (metadata, docCache, assemblies) = await load;
 
                 target.CompletionMetadata = metadata;
                 target.DocCache = docCache;
+                target.AssemblyPaths = assemblies;
                 target.NeedInvalidation = false;
 
                 sw.Stop();
@@ -685,7 +686,7 @@ namespace AvaloniaVS.Views
             }
         }
 
-        private static async Task<(Metadata Metadata, XmlDocCache DocCache)> LoadMetadataAsync(string executablePath, Func<IAssemblyProvider> assemblyProviderFunc)
+        private static async Task<(Metadata Metadata, XmlDocCache DocCache, IReadOnlyList<string> AssemblyPaths)> LoadMetadataAsync(string executablePath, Func<IAssemblyProvider> assemblyProviderFunc)
         {
             // TryCreate walks VSProject.References, which requires the UI thread.
             // Pay this hop once per cache miss, not once per consumer.
@@ -697,7 +698,7 @@ namespace AvaloniaVS.Views
             var docCacheTask = Task.Run(() => XmlDocCache.Build(assemblies));
 
             await Task.WhenAll(metadataTask, docCacheTask);
-            return (await metadataTask, await docCacheTask);
+            return (await metadataTask, await docCacheTask, assemblies);
         }
 
         private static void EnsureBuildEventsSubscribed()

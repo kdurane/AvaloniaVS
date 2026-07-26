@@ -1,4 +1,7 @@
-﻿using Microsoft.VisualStudio.Text;
+﻿using System.Collections.Generic;
+using Avalonia.Ide.CompletionEngine;
+using AvaloniaVS.Shared.Services;
+using Microsoft.VisualStudio.Text;
 
 namespace AvaloniaVS.Shared.Navigation
 {
@@ -20,7 +23,8 @@ namespace AvaloniaVS.Shared.Navigation
     /// <summary>
     /// Result of resolving a XAML-qualified name to a CLR type.
     /// </summary>
-    public sealed class XamlTypeReference(string fullyQualifiedTypeName, string assemblyName = null)
+    public sealed class XamlTypeReference(string fullyQualifiedTypeName, string assemblyName = null,
+    MetadataType metadataType = null, IReadOnlyList<string> assemblyPaths = null, XmlDocCache docCache = null)
     {
         /// <summary>
         /// Fully-qualified CLR name in Roslyn "metadata name" form, e.g.
@@ -36,6 +40,9 @@ namespace AvaloniaVS.Shared.Navigation
         /// own assembly name isn't always the interesting bit for a source-jump.
         /// </summary>
         public string AssemblyName { get; } = assemblyName;
+        public MetadataType MetadataType { get; } = metadataType;
+        public IReadOnlyList<string> AssemblyPaths { get; } = assemblyPaths;
+        public XmlDocCache DocCache { get; } = docCache;
     }
 
 }

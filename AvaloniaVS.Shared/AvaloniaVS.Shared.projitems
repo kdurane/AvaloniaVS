@@ -44,7 +44,9 @@
     <Compile Include="$(MSBuildThisFileDirectory)Navigation\AxamlNavigableSymbol.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Navigation\AxamlSymbolTarget.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Navigation\AxamlTextViewListener.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Navigation\DnlibStubGenerator.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Navigation\IXamlTypeResolutionService.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Navigation\MetadataStubGenerator.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Navigation\RoslynSymbolNavigator.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Navigation\XamlTypeResolutionService.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ProjectSystem\AvaloniaProject.cs" />

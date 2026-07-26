@@ -135,5 +135,45 @@ namespace AvaloniaVS.Shared.Services
 
             return null;
         }
+
+        public string TryGetFieldSummary(string declaringTypeFullName, string propertyName)
+        {
+            if (declaringTypeFullName == null || propertyName == null)
+            {
+                return null;
+            }
+
+            if (_summaries.TryGetValue($"F:{declaringTypeFullName}.{propertyName}", out var summary))
+            {
+                return summary;
+            }
+
+            if (_summaries.TryGetValue($"F:{declaringTypeFullName}.{propertyName}Property", out summary))
+            {
+                return summary;
+            }
+
+            return null;
+        }
+
+        public string TryGetEventSummary(string declaringTypeFullName, string propertyName)
+        {
+            if (declaringTypeFullName == null || propertyName == null)
+            {
+                return null;
+            }
+
+            if (_summaries.TryGetValue($"E:{declaringTypeFullName}.{propertyName}", out var summary))
+            {
+                return summary;
+            }
+
+            if (_summaries.TryGetValue($"F:{declaringTypeFullName}.{propertyName}Property", out summary))
+            {
+                return summary;
+            }
+
+            return null;
+        }
     }
 }

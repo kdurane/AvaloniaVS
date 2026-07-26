@@ -1,5 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
+using Avalonia.Ide.CompletionEngine;
 using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.LanguageServices;
 using Microsoft.VisualStudio.Shell;
@@ -11,7 +15,7 @@ namespace AvaloniaVS.Shared.Navigation
         VisualStudioWorkspace workspace) : INavigableSymbol
     {
         private readonly XamlTypeReference _typeReference = typeReference;
-        private readonly System.IServiceProvider _serviceProvider = serviceProvider;
+        private readonly IServiceProvider _serviceProvider = serviceProvider;
         private readonly VisualStudioWorkspace _workspace = workspace;
 
         public SnapshotSpan SymbolSpan { get; } = symbolSpan;
@@ -26,12 +30,42 @@ namespace AvaloniaVS.Shared.Navigation
             ThreadHelper.JoinableTaskFactory.Run(async () =>
             {
                 var symbol = await RoslynSymbolNavigator.FindSymbolAsync(_workspace, _typeReference.FullyQualifiedTypeName, CancellationToken.None);
-                if (symbol == null)
-                    return;
+                var sourceLocation = symbol?.Locations.FirstOrDefault(l => l.IsInSource);
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                RoslynSymbolNavigator.NavigateToSymbol(_serviceProvider, symbol);
+
+                if (sourceLocation != null)
+                {
+                    RoslynSymbolNavigator.NavigateToLocation(_serviceProvider, sourceLocation);
+                    return;
+                }
+
+                if (_typeReference.AssemblyPaths == null)
+                {
+                    RoslynSymbolNavigator.ShowStatusBarMessage(_serviceProvider, $"No source available for '{_typeReference.FullyQualifiedTypeName}'.");
+                    return;
+                }
+
+                RoslynSymbolNavigator.ShowStatusBarMessage(_serviceProvider, $"Generating definition for {ShortName(_typeReference.FullyQualifiedTypeName)}...");
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                var stub = await Task.Run(() =>
+                    DnlibStubGenerator.GenerateStub(_typeReference.FullyQualifiedTypeName, _typeReference.AssemblyPaths, _typeReference.DocCache));
+
+                if (stub != null && DnlibStubGenerator.NavigateToGeneratedStub(_serviceProvider, stub, _typeReference.FullyQualifiedTypeName))
+                {
+                    RoslynSymbolNavigator.ClearStatusBarMessage(_serviceProvider);
+                    return;
+                }
+
+                RoslynSymbolNavigator.ShowStatusBarMessage(_serviceProvider, $"No source available for '{_typeReference.FullyQualifiedTypeName}'.");
             });
         }
+
+
+        private static string ShortName(string fullyQualifiedName) => fullyQualifiedName[(fullyQualifiedName.LastIndexOf('.') + 1)..];
+
+
     }
 }

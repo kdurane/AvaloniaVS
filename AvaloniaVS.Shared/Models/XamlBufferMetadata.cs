@@ -1,4 +1,5 @@
-﻿using AvaloniaVS.Shared.Services;
+﻿using System.Collections.Generic;
+using AvaloniaVS.Shared.Services;
 using CompletionMetadata = Avalonia.Ide.CompletionEngine.Metadata;
 
 namespace AvaloniaVS.Models
@@ -7,6 +8,7 @@ namespace AvaloniaVS.Models
     {
         public CompletionMetadata CompletionMetadata { get; set; }
         public XmlDocCache DocCache { get; set; }
+        public IReadOnlyList<string> AssemblyPaths { get; set; }
         public bool NeedInvalidation { get; set; } = true;
     }
 }

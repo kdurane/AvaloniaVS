@@ -26,6 +26,7 @@ namespace AvaloniaVS.Shared.IntelliSense
 
         private ITextSnapshot _cachedSnapshot;
         private List<TagSpan<ClassificationTag>> _cachedTags;
+        private List<(SnapshotSpan Span, string AttributeName)> _cachedAttributeValueSpans = [];
 
         private static readonly Regex s_fullCommentRegex = new(@"<!--.*?-->", RegexOptions.Compiled | RegexOptions.Singleline);
         private static readonly Regex s_extensionPropertyRegex = new(@"\b(?<prop>[A-Za-z_][\w]*)\s*=", RegexOptions.Compiled);
@@ -69,10 +70,18 @@ namespace AvaloniaVS.Shared.IntelliSense
             }
         }
 
+        public IReadOnlyList<(SnapshotSpan Span, string AttributeName)> GetAttributeValueSpans(ITextSnapshot snapshot)
+        {
+            GetOrComputeTags(snapshot); // ensures cache is fresh for this snapshot
+            return _cachedAttributeValueSpans;
+        }
+
         private List<TagSpan<ClassificationTag>> GetOrComputeTags(ITextSnapshot snapshot)
         {
             if (_cachedSnapshot == snapshot && _cachedTags != null)
                 return _cachedTags;
+
+            _cachedAttributeValueSpans = [];
 
             var text = snapshot.GetText();
             var tags = new List<TagSpan<ClassificationTag>>();
@@ -170,16 +179,16 @@ namespace AvaloniaVS.Shared.IntelliSense
             tags.Add(MakeTag(snapshot, nameStart, end, _type));
         }
 
-        private void ClassifyExtensionProperties(List<TagSpan<ClassificationTag>> tags, ITextSnapshot snapshot, string text, int innerStart, int innerEnd)
-        {
-            var inner = text.AsSpan(innerStart, innerEnd - innerStart).ToString();
+        //private void ClassifyExtensionProperties(List<TagSpan<ClassificationTag>> tags, ITextSnapshot snapshot, string text, int innerStart, int innerEnd)
+        //{
+        //    var inner = text.AsSpan(innerStart, innerEnd - innerStart).ToString();
 
-            foreach (Match match in s_extensionPropertyRegex.Matches(inner))
-            {
-                var group = match.Groups["prop"];
-                tags.Add(MakeTag(snapshot, innerStart + group.Index, innerStart + group.Index + group.Length, _attachedProperty));
-            }
-        }
+        //    foreach (Match match in s_extensionPropertyRegex.Matches(inner))
+        //    {
+        //        var group = match.Groups["prop"];
+        //        tags.Add(MakeTag(snapshot, innerStart + group.Index, innerStart + group.Index + group.Length, _attachedProperty));
+        //    }
+        //}
 
         private void ClassifyAttributeValue(List<TagSpan<ClassificationTag>> tags, ITextSnapshot snapshot, string text, int start, int end, string attributeName)
         {
@@ -198,6 +207,8 @@ namespace AvaloniaVS.Shared.IntelliSense
             {
                 ClassifyMarkupExtension(tags, snapshot, text, valueStart, valueStart + value.Length, depth: 0);
             }
+
+            _cachedAttributeValueSpans.Add((new SnapshotSpan(snapshot, valueStart, value.Length), attributeName));
         }
 
         private void ClassifyMarkupExtension(List<TagSpan<ClassificationTag>> tags, ITextSnapshot snapshot, string text, int start, int end, int depth)
@@ -215,8 +226,6 @@ namespace AvaloniaVS.Shared.IntelliSense
             if (braceClose <= 0)
                 return;
 
-            var innerStart = start + extNameStart - start + extension.Length + 1; // after "{Name "
-                                                                                  // simpler: recompute from span directly
             var afterName = 1 + extension.Length;
             while (afterName < span.Length && span[afterName] == ' ')
                 afterName++;
