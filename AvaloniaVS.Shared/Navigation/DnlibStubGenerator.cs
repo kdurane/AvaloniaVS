@@ -15,6 +15,56 @@ namespace AvaloniaVS.Shared.Navigation
         private const string Nl = "\r\n"; // explicit everywhere - never rely on Environment.NewLine
                                           // or a literal string containing "\n", to avoid mixed EOL warnings
 
+        // Attributes that are compiler/tooling plumbing rather than part of the original
+        // author's source - showing these would make the stub *less* like the original, not more.
+        private static readonly HashSet<string> s_attributeSkipList = new(StringComparer.Ordinal)
+        {
+            "System.Runtime.CompilerServices.CompilerGeneratedAttribute",
+            "System.Runtime.CompilerServices.NullableAttribute",
+            "System.Runtime.CompilerServices.NullableContextAttribute",
+            "System.Runtime.CompilerServices.ExtensionAttribute",
+            "System.Runtime.CompilerServices.IsReadOnlyAttribute",
+            "System.Runtime.CompilerServices.IteratorStateMachineAttribute",
+            "System.Runtime.CompilerServices.AsyncStateMachineAttribute",
+            "System.Runtime.CompilerServices.AsyncIteratorStateMachineAttribute",
+            "System.Runtime.CompilerServices.RefSafetyRulesAttribute",
+            "System.Runtime.CompilerServices.EmbeddedAttribute",
+            "System.Runtime.CompilerServices.CompilationRelaxationsAttribute",
+            "System.Runtime.CompilerServices.RuntimeCompatibilityAttribute",
+            "System.Diagnostics.DebuggerStepThroughAttribute",
+            "System.Diagnostics.DebuggerBrowsableAttribute",
+            "System.Runtime.InteropServices.OptionalAttribute", // surfaced via param default instead
+            "Microsoft.CodeAnalysis.EmbeddedAttribute",
+        };
+
+        private static readonly Dictionary<string, string> s_operatorSymbols = new(StringComparer.Ordinal)
+        {
+            ["op_Addition"] = "+",
+            ["op_Subtraction"] = "-",
+            ["op_Multiply"] = "*",
+            ["op_Division"] = "/",
+            ["op_Modulus"] = "%",
+            ["op_UnaryNegation"] = "-",
+            ["op_UnaryPlus"] = "+",
+            ["op_Equality"] = "==",
+            ["op_Inequality"] = "!=",
+            ["op_LessThan"] = "<",
+            ["op_GreaterThan"] = ">",
+            ["op_LessThanOrEqual"] = "<=",
+            ["op_GreaterThanOrEqual"] = ">=",
+            ["op_BitwiseAnd"] = "&",
+            ["op_BitwiseOr"] = "|",
+            ["op_ExclusiveOr"] = "^",
+            ["op_LeftShift"] = "<<",
+            ["op_RightShift"] = ">>",
+            ["op_Increment"] = "++",
+            ["op_Decrement"] = "--",
+            ["op_LogicalNot"] = "!",
+            ["op_OnesComplement"] = "~",
+            ["op_True"] = "true",
+            ["op_False"] = "false",
+        };
+
         public static string GenerateStub(string fullyQualifiedTypeName, IReadOnlyList<string> assemblyPaths, XmlDocCache docCache)
         {
             if (assemblyPaths == null || assemblyPaths.Count == 0)
@@ -61,98 +111,346 @@ namespace AvaloniaVS.Shared.Navigation
             if (!string.IsNullOrEmpty(ns))
                 sb.Append("namespace ").Append(ns).Append(Nl).Append('{').Append(Nl);
 
-            AppendSummary(sb, docCache?.TryGetTypeSummary(type.FullName), "    ");
+            EmitType(sb, type, docCache, !string.IsNullOrEmpty(ns) ? "    " : "", "public");
 
-            sb.Append("    public ");
-            sb.Append(type.IsSealed ? "sealed " : "");
-            sb.Append(type.IsInterface ? "interface " : type.IsAbstract ? "abstract class " : "class ");
-            sb.Append(type.Name);
-
-            var bases = new List<string>();
-            if (type.BaseType != null && type.BaseType.FullName != "System.Object")
-                bases.Add(FormatTypeName(type.BaseType));
-            bases.AddRange(type.Interfaces.Select(i => FormatTypeName(i.Interface)));
-            if (bases.Count > 0)
-                sb.Append(" : ").Append(string.Join(", ", bases));
-
-            sb.Append(Nl).Append("    {").Append(Nl);
-
-            // fields - public/protected instance and const/static, skip compiler-generated backing fields
-            foreach (var field in type.Fields.Where(f => (f.IsPublic || f.IsFamily) && !f.Name.String.Contains("k__BackingField")))
-            {
-                AppendSummary(sb, docCache?.TryGetFieldSummary(type.FullName, field.Name), "        ");
-                sb.Append("        public ");
-                if (field.IsLiteral)
-                    sb.Append("const ");
-                else if (field.IsStatic)
-                    sb.Append("static ");
-                if (field.IsInitOnly)
-                    sb.Append("readonly ");
-                sb.Append(FormatTypeName(field.FieldType)).Append(' ').Append(field.Name).Append(';').Append(Nl);
-            }
-
-            // constructors
-            foreach (var ctor in type.Methods.Where(m => m.IsConstructor && (m.IsPublic || m.IsFamily)))
-            {
-                var parameters = FormatParameters(ctor);
-                sb.Append("        public ").Append(type.Name).Append('(').Append(parameters).Append(')').Append(';').Append(Nl);
-            }
-
-            // properties (including indexers, which carry parameters on the getter/setter)
-            foreach (var prop in type.Properties.Where(IsPubliclyVisible))
-            {
-                AppendSummary(sb, docCache?.TryGetPropertySummary(type.FullName, prop.Name), "        ");
-                var indexParams = (prop.GetMethod ?? prop.SetMethod)?.Parameters
-                    .Where(p => !p.IsHiddenThisParameter && !p.IsReturnTypeParameter).ToList();
-
-                sb.Append("        public ").Append(FormatTypeName(prop.PropertySig.RetType)).Append(' ');
-                if (indexParams is { Count: > 0 })
-                    sb.Append("this[").Append(string.Join(", ", indexParams.Select(p => $"{FormatTypeName(p.Type)} {p.Name}"))).Append(']');
-                else
-                    sb.Append(prop.Name);
-
-                sb.Append(" { ");
-                if (prop.GetMethod?.IsPublic == true)
-                    sb.Append("get; ");
-                if (prop.SetMethod?.IsPublic == true)
-                    sb.Append("set; ");
-                sb.Append('}').Append(Nl);
-            }
-
-            // events
-            foreach (var evt in type.Events.Where(e => e.AddMethod?.IsPublic == true))
-            {
-                AppendSummary(sb, docCache?.TryGetEventSummary(type.FullName, evt.Name), "        ");
-                sb.Append("        public event ").Append(FormatTypeName(evt.EventType)).Append(' ').Append(evt.Name).Append(';').Append(Nl);
-            }
-
-            // methods - own declared, public, not a ctor, not a property/event accessor (get_/set_/add_/remove_)
-            foreach (var method in type.Methods.Where(m =>
-                         m.IsPublic && !m.IsConstructor && !m.IsSpecialName))
-            {
-                var parameters = FormatParameters(method);
-                sb.Append("        public ").Append(method.IsStatic ? "static " : "")
-                  .Append(FormatTypeName(method.ReturnType)).Append(' ').Append(method.Name)
-                  .Append('(').Append(parameters).Append(')').Append(';').Append(Nl);
-            }
-
-            // nested types - listed, not expanded (avoids unbounded recursion into nested classes)
-            foreach (var nested in type.NestedTypes.Where(t => t.IsNestedPublic))
-                sb.Append("        public class ").Append(nested.Name).Append(" { /* nested type - navigate separately */ }").Append(Nl);
-
-            sb.Append("    }").Append(Nl);
             if (!string.IsNullOrEmpty(ns))
                 sb.Append('}').Append(Nl);
 
             return sb.ToString();
         }
 
-        private static bool IsPubliclyVisible(PropertyDef prop) =>
-            prop.GetMethod?.IsPublic == true || prop.SetMethod?.IsPublic == true;
+        // Dispatches to the right shape (enum / delegate / struct / interface / class) and
+        // is also the recursion point for nested types, so a nested enum-in-a-class etc. "just works".
+        // A top-level type found via GenerateStub is necessarily public (that's how it was
+        // reachable), but nested types carry their own declared accessibility - including
+        // private, which matters a lot for "as close to the original as possible": private
+        // nested helper types are exactly the kind of implementation detail worth showing.
+        private static void EmitType(StringBuilder sb, TypeDef type, XmlDocCache docCache, string indent, string accessibility)
+        {
+            if (type.IsEnum)
+                EmitEnum(sb, type, docCache, indent, accessibility);
+            else if (IsDelegateType(type))
+                EmitDelegate(sb, type, docCache, indent, accessibility);
+            else
+                EmitClassOrStructOrInterface(sb, type, docCache, indent, accessibility);
+        }
 
-        private static bool IsPubliclyVisibleMethod(MethodDef method) =>
-            method.IsPublic && !method.IsSpecialName && !method.IsConstructor && !method.IsStatic == method.IsStatic
-                && method.DeclaringType.BaseType?.FullName != "System.Object";
+        private static string FormatNestedTypeAccessibility(TypeDef type)
+        {
+            if (type.IsNestedPublic)
+                return "public";
+            if (type.IsNestedFamilyOrAssembly)
+                return "protected internal";
+            if (type.IsNestedFamily)
+                return "protected";
+            if (type.IsNestedFamilyAndAssembly)
+                return "private protected";
+            if (type.IsNestedAssembly)
+                return "internal";
+            return "private";
+        }
+
+        private static bool IsDelegateType(TypeDef type) =>
+            type.BaseType?.FullName == "System.MulticastDelegate";
+
+        private static void EmitEnum(StringBuilder sb, TypeDef type, XmlDocCache docCache, string indent, string accessibility)
+        {
+            AppendAttributes(sb, type, indent);
+            AppendSummary(sb, docCache?.TryGetTypeSummary(type.FullName), indent);
+
+            var underlying = type.Fields.FirstOrDefault(f => f.Name == "value__")?.FieldType;
+            var underlyingName = underlying != null ? FormatTypeName(underlying) : "int";
+
+            sb.Append(indent).Append(accessibility).Append(" enum ").Append(type.Name);
+            if (underlyingName != "int")
+                sb.Append(" : ").Append(underlyingName);
+            sb.Append(Nl).Append(indent).Append('{').Append(Nl);
+
+            var members = type.Fields.Where(f => f.IsLiteral).ToList();
+            for (var i = 0; i < members.Count; i++)
+            {
+                var field = members[i];
+                AppendSummary(sb, docCache?.TryGetFieldSummary(type.FullName, field.Name), indent + "    ");
+                sb.Append(indent).Append("    ").Append(field.Name);
+                if (field.Constant != null)
+                    sb.Append(" = ").Append(FormatConstant(field.Constant.Value));
+                sb.Append(i < members.Count - 1 ? "," : "").Append(Nl);
+            }
+
+            sb.Append(indent).Append('}').Append(Nl);
+        }
+
+        private static void EmitDelegate(StringBuilder sb, TypeDef type, XmlDocCache docCache, string indent, string accessibility)
+        {
+            var invoke = type.Methods.FirstOrDefault(m => m.Name == "Invoke");
+
+            AppendAttributes(sb, type, indent);
+            AppendSummary(sb, docCache?.TryGetTypeSummary(type.FullName), indent);
+
+            var generics = FormatGenericParams(type.GenericParameters, out var where);
+
+            var returnOwner = invoke?.Parameters.ReturnParameter?.ParamDef as IHasCustomAttribute ?? invoke;
+            var returnTypeName = invoke != null
+                ? FormatMemberTypeName(invoke.ReturnType, returnOwner, type, invoke, type.GenericParameters, invoke.GenericParameters)
+                : "void";
+
+            sb.Append(indent).Append(accessibility).Append(" delegate ")
+              .Append(returnTypeName).Append(' ')
+              .Append(type.Name).Append(generics).Append('(');
+
+            if (invoke != null)
+            {
+                sb.Append(string.Join(", ", invoke.Parameters
+                    .Where(p => !p.IsHiddenThisParameter && !p.IsReturnTypeParameter)
+                    .Select(p => FormatParameter(p, type, invoke, type.GenericParameters, invoke.GenericParameters))));
+            }
+
+            sb.Append(')').Append(where).Append(';').Append(Nl);
+        }
+
+        private static void EmitClassOrStructOrInterface(StringBuilder sb, TypeDef type, XmlDocCache docCache, string indent, string accessibility)
+        {
+            AppendAttributes(sb, type, indent);
+            AppendSummary(sb, docCache?.TryGetTypeSummary(type.FullName), indent);
+
+            sb.Append(indent).Append(accessibility).Append(' ');
+
+            var isStruct = type.IsValueType && !type.IsEnum;
+            var isStaticClass = !type.IsInterface && type.IsAbstract && type.IsSealed;
+
+            if (type.IsInterface)
+            {
+                sb.Append("interface ");
+            }
+            else if (isStruct)
+            {
+                if (type.IsSealed && HasReadOnlyLikeShape(type))
+                    sb.Append("readonly "); // best-effort; harmless if wrong
+                sb.Append("struct ");
+            }
+            else if (isStaticClass)
+            {
+                sb.Append("static class ");
+            }
+            else
+            {
+                if (type.IsSealed)
+                    sb.Append("sealed ");
+                else if (type.IsAbstract)
+                    sb.Append("abstract ");
+                sb.Append("class ");
+            }
+
+            sb.Append(type.Name);
+
+            var generics = FormatGenericParams(type.GenericParameters, out var where);
+            sb.Append(generics);
+
+            var bases = new List<string>();
+            if (!isStruct && !type.IsInterface && type.BaseType != null &&
+                type.BaseType.FullName != "System.Object" && type.BaseType.FullName != "System.ValueType")
+            {
+                bases.Add(FormatTypeName(type.BaseType.ToTypeSig(), type.GenericParameters));
+            }
+            bases.AddRange(type.Interfaces.Select(i => FormatTypeName(i.Interface.ToTypeSig(), type.GenericParameters)));
+            if (bases.Count > 0)
+                sb.Append(" : ").Append(string.Join(", ", bases));
+
+            sb.Append(where);
+            sb.Append(Nl).Append(indent).Append('{').Append(Nl);
+
+            var memberIndent = indent + "    ";
+
+            // fields - public/protected/protected-internal instance and const/static,
+            // skip compiler-generated backing fields
+            foreach (var field in type.Fields.Where(f =>
+                         FormatAccessibility(f.IsPublic, f.IsFamily, f.IsFamilyOrAssembly, f.IsFamilyAndAssembly) != null &&
+                         !f.Name.String.Contains("k__BackingField")))
+            {
+                AppendAttributes(sb, field, memberIndent);
+                AppendSummary(sb, docCache?.TryGetFieldSummary(type.FullName, field.Name), memberIndent);
+                sb.Append(memberIndent).Append(FormatAccessibility(field.IsPublic, field.IsFamily, field.IsFamilyOrAssembly, field.IsFamilyAndAssembly)).Append(' ');
+                if (field.IsLiteral)
+                    sb.Append("const ");
+                else if (field.IsStatic)
+                    sb.Append("static ");
+                if (field.IsInitOnly)
+                    sb.Append("readonly ");
+                sb.Append(FormatMemberTypeName(field.FieldType, field, type, null, type.GenericParameters, null)).Append(' ').Append(field.Name);
+                if (field.IsLiteral && field.Constant != null)
+                    sb.Append(" = ").Append(FormatConstant(field.Constant.Value));
+                sb.Append(';').Append(Nl);
+            }
+
+            // constructors (instance and static)
+            foreach (var ctor in type.Methods.Where(m => m.IsConstructor &&
+                         (m.IsStatic || FormatAccessibility(m.IsPublic, m.IsFamily, m.IsFamilyOrAssembly, m.IsFamilyAndAssembly) != null)))
+            {
+                AppendAttributes(sb, ctor, memberIndent);
+                if (ctor.IsStatic)
+                {
+                    // Kept in the same signature-only, semicolon-terminated style as every other
+                    // member here rather than showing a body - this stub was never meant to compile.
+                    sb.Append(memberIndent).Append("static ").Append(type.Name).Append("();").Append(Nl);
+                    continue;
+                }
+
+                var parameters = FormatParameters(ctor, type, ctor, type.GenericParameters, null);
+                sb.Append(memberIndent).Append(FormatAccessibility(ctor.IsPublic, ctor.IsFamily, ctor.IsFamilyOrAssembly, ctor.IsFamilyAndAssembly))
+                  .Append(' ').Append(type.Name).Append('(').Append(parameters).Append(')').Append(';').Append(Nl);
+            }
+
+            // properties (including indexers, which carry parameters on the getter/setter)
+            foreach (var prop in type.Properties.Where(IsPubliclyVisible))
+            {
+                AppendAttributes(sb, prop, memberIndent);
+                AppendSummary(sb, docCache?.TryGetPropertySummary(type.FullName, prop.Name), memberIndent);
+
+                var accessor = prop.GetMethod ?? prop.SetMethod;
+                var indexParams = accessor?.Parameters
+                    .Where(p => !p.IsHiddenThisParameter && !p.IsReturnTypeParameter).ToList();
+
+                sb.Append(memberIndent)
+                  .Append(FormatAccessibility(accessor.IsPublic, accessor.IsFamily, accessor.IsFamilyOrAssembly, accessor.IsFamilyAndAssembly))
+                  .Append(' ').Append(FormatMemberModifiers(accessor, type.IsInterface))
+                  .Append(FormatMemberTypeName(prop.PropertySig.RetType, prop, type, accessor, type.GenericParameters, null)).Append(' ');
+
+                if (indexParams is { Count: > 0 })
+                    sb.Append("this[").Append(string.Join(", ", indexParams.Select(p => FormatParameter(p, type, accessor, type.GenericParameters, null)))).Append(']');
+                else
+                    sb.Append(prop.Name);
+
+                sb.Append(" { ");
+                if (prop.GetMethod?.IsPublic == true || prop.GetMethod?.IsFamily == true || prop.GetMethod?.IsFamilyOrAssembly == true)
+                    sb.Append("get; ");
+                if (prop.SetMethod?.IsPublic == true || prop.SetMethod?.IsFamily == true || prop.SetMethod?.IsFamilyOrAssembly == true)
+                    sb.Append(IsInitOnlySetter(prop.SetMethod) ? "init; " : "set; ");
+                sb.Append('}').Append(Nl);
+            }
+
+            // events
+            foreach (var evt in type.Events.Where(e =>
+                         FormatAccessibility(e.AddMethod?.IsPublic ?? false, e.AddMethod?.IsFamily ?? false,
+                             e.AddMethod?.IsFamilyOrAssembly ?? false, e.AddMethod?.IsFamilyAndAssembly ?? false) != null))
+            {
+                AppendAttributes(sb, evt, memberIndent);
+                AppendSummary(sb, docCache?.TryGetEventSummary(type.FullName, evt.Name), memberIndent);
+                sb.Append(memberIndent)
+                  .Append(FormatAccessibility(evt.AddMethod.IsPublic, evt.AddMethod.IsFamily, evt.AddMethod.IsFamilyOrAssembly, evt.AddMethod.IsFamilyAndAssembly))
+                  .Append(' ').Append(FormatMemberModifiers(evt.AddMethod, type.IsInterface))
+                  .Append("event ").Append(FormatMemberTypeName(evt.EventType.ToTypeSig(), evt, type, evt.AddMethod, type.GenericParameters, null)).Append(' ').Append(evt.Name).Append(';').Append(Nl);
+            }
+
+            // methods - own declared, not a ctor, not a property/event accessor (get_/set_/add_/remove_)
+            // unless it's an operator (op_Xxx), which *is* special-name but we want to show it.
+            foreach (var method in type.Methods.Where(m =>
+                         !m.IsConstructor &&
+                         (!m.IsSpecialName || m.Name.StartsWith("op_")) &&
+                         (FormatAccessibility(m.IsPublic, m.IsFamily, m.IsFamilyOrAssembly, m.IsFamilyAndAssembly) != null ||
+                          (m.Overrides.Count > 0)))) // explicit interface impls are private but belong in the surface
+            {
+                EmitMethod(sb, type, method, docCache, memberIndent);
+            }
+
+            // nested types - fully expanded, not just a placeholder comment, and shown regardless
+            // of accessibility: private helper types (like a command-wrapper or a coordinator
+            // class) are often exactly the implementation detail worth seeing in a stub.
+            foreach (var nested in type.NestedTypes)
+            {
+                sb.Append(Nl);
+                EmitType(sb, nested, docCache, memberIndent, FormatNestedTypeAccessibility(nested));
+            }
+
+            sb.Append(indent).Append('}').Append(Nl);
+        }
+
+        private static void EmitMethod(StringBuilder sb, TypeDef type, MethodDef method, XmlDocCache docCache, string indent)
+        {
+            AppendAttributes(sb, method, indent);
+            AppendSummary(sb, docCache?.TryGetMethodSummary(type.FullName, method), indent);
+
+            var isExplicitImpl = method.Overrides.Count > 0 && !method.IsPublic;
+            var methodGenerics = method.GenericParameters;
+            var generics = FormatGenericParams(methodGenerics, out var where);
+            var parameters = FormatParameters(method, type, method, type.GenericParameters, methodGenerics);
+
+            var returnOwner = method.Parameters.ReturnParameter?.ParamDef as IHasCustomAttribute ?? method;
+            var returnTypeName = FormatMemberTypeName(method.ReturnType, returnOwner, type, method, type.GenericParameters, methodGenerics);
+
+            // conversion operators: `public static implicit operator Target(Source value);`
+            if (method.Name == "op_Implicit" || method.Name == "op_Explicit")
+            {
+                sb.Append(indent).Append("public static ")
+                  .Append(method.Name == "op_Implicit" ? "implicit " : "explicit ")
+                  .Append("operator ").Append(returnTypeName)
+                  .Append('(').Append(parameters).Append(')').Append(';').Append(Nl);
+                return;
+            }
+
+            if (s_operatorSymbols.TryGetValue(method.Name, out var symbol))
+            {
+                sb.Append(indent).Append("public static ")
+                  .Append(returnTypeName).Append(" operator ").Append(symbol)
+                  .Append('(').Append(parameters).Append(')').Append(';').Append(Nl);
+                return;
+            }
+
+            sb.Append(indent);
+            if (isExplicitImpl)
+            {
+                // Explicit interface implementations have no access modifier in source and are
+                // named Interface.Member rather than just Member.
+                var ov = method.Overrides[0].MethodDeclaration;
+                sb.Append(returnTypeName).Append(' ')
+                  .Append(FormatTypeName(ov.DeclaringType.ToTypeSig(), type.GenericParameters)).Append('.').Append(ov.Name)
+                  .Append(generics).Append('(').Append(parameters).Append(')').Append(where).Append(';').Append(Nl);
+                return;
+            }
+
+            sb.Append(FormatAccessibility(method.IsPublic, method.IsFamily, method.IsFamilyOrAssembly, method.IsFamilyAndAssembly)).Append(' ');
+            sb.Append(FormatMemberModifiers(method, type.IsInterface));
+            sb.Append(returnTypeName).Append(' ').Append(method.Name)
+              .Append(generics).Append('(').Append(parameters).Append(')').Append(where).Append(';').Append(Nl);
+        }
+
+        // static / virtual / override / sealed-override / abstract, in the order C# expects.
+        // Interface members get no modifier at all (default interface methods aside, which we don't attempt).
+        private static string FormatMemberModifiers(MethodDef method, bool declaringTypeIsInterface)
+        {
+            if (method == null || declaringTypeIsInterface)
+                return "";
+
+            if (method.IsStatic)
+                return "static ";
+            if (method.IsAbstract)
+                return "abstract ";
+            if (method.IsFinal && method.IsVirtual && !method.IsNewSlot)
+                return "sealed override ";
+            if (method.IsVirtual && !method.IsNewSlot)
+                return "override ";
+            if (method.IsVirtual && method.IsNewSlot && !method.IsFinal)
+                return "virtual ";
+
+            return "";
+        }
+
+        private static bool IsInitOnlySetter(MethodDef setter) =>
+            setter?.ReturnType?.Next is null &&
+            setter?.CustomAttributes?.Any(a => a.TypeFullName == "System.Runtime.CompilerServices.IsExternalInit") == true;
+        // Note: IsExternalInit lives on the *modreq* of the setter's return type in real metadata;
+        // this checks custom attributes as a best-effort fallback since dnlib exposes modreqs
+        // separately. Safe to leave as "set;" if this doesn't match - just slightly less exact.
+
+        private static bool HasReadOnlyLikeShape(TypeDef type) =>
+            type.Fields.Where(f => !f.IsStatic).All(f => f.IsInitOnly);
+
+        private static bool IsPubliclyVisible(PropertyDef prop)
+        {
+            var accessor = prop.GetMethod ?? prop.SetMethod;
+            if (accessor == null)
+                return false;
+            return FormatAccessibility(accessor.IsPublic, accessor.IsFamily, accessor.IsFamilyOrAssembly, accessor.IsFamilyAndAssembly) != null;
+        }
 
         private static void AppendSummary(StringBuilder sb, string summary, string indent)
         {
@@ -164,14 +462,320 @@ namespace AvaloniaVS.Shared.Navigation
             sb.Append(indent).Append("/// </summary>").Append(Nl);
         }
 
-        private static string FormatParameters(MethodDef method) =>
-    string.Join(", ", method.Parameters
-        .Where(p => !p.IsHiddenThisParameter && !p.IsReturnTypeParameter)
-        .Select(p => $"{FormatTypeName(p.Type)} {p.Name}"));
+        private static void AppendAttributes(StringBuilder sb, IHasCustomAttribute owner, string indent)
+        {
+            if (owner?.HasCustomAttributes != true)
+                return;
 
-        private static string FormatTypeName(ITypeDefOrRef type) => FormatTypeName(type.ToTypeSig());
+            foreach (var ca in owner.CustomAttributes)
+            {
+                var typeName = ca.TypeFullName;
+                if (string.IsNullOrEmpty(typeName) || s_attributeSkipList.Contains(typeName))
+                    continue;
 
-        private static string FormatTypeName(TypeSig sig)
+                var shortName = typeName;
+                var lastDot = shortName.LastIndexOf('.');
+                if (lastDot >= 0)
+                    shortName = shortName[(lastDot + 1)..];
+                if (shortName.EndsWith("Attribute", StringComparison.Ordinal))
+                    shortName = shortName[..^"Attribute".Length];
+
+                var args = new List<string>();
+                foreach (var arg in ca.ConstructorArguments)
+                    args.Add(FormatAttributeValue(arg));
+                foreach (var named in ca.NamedArguments)
+                    args.Add($"{named.Name} = {FormatAttributeValue(named.Argument)}");
+
+                sb.Append(indent).Append('[').Append(shortName);
+                if (args.Count > 0)
+                    sb.Append('(').Append(string.Join(", ", args)).Append(')');
+                sb.Append(']').Append(Nl);
+            }
+        }
+
+        private static string FormatAttributeValue(CAArgument arg)
+        {
+            return arg.Value switch
+            {
+                UTF8String s => $"\"{s}\"",
+                string s => $"\"{s}\"",
+                bool b => b ? "true" : "false",
+                null => "null",
+                CAArgument[] arr => "new[] { " + string.Join(", ", arr.Select(FormatAttributeValue)) + " }",
+                _ => arg.Value.ToString()
+            };
+        }
+
+        private static string FormatConstant(object value)
+        {
+            return value switch
+            {
+                null => "null",
+                string s => $"\"{s.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"",
+                char c => $"'{c}'",
+                bool b => b ? "true" : "false",
+                float f => f.ToString(System.Globalization.CultureInfo.InvariantCulture) + "f",
+                double d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                _ => value.ToString()
+            };
+        }
+
+        // Nullable reference types are erased from the CLR type system and re-encoded as
+        // NullableAttribute (per-member, byte or byte[]) plus NullableContextAttribute (a
+        // scope-wide default so the compiler doesn't have to repeat itself on every member).
+        // Without reading these, every reference type in a nullable-annotated codebase (which
+        // is most modern .NET, including Avalonia) silently loses its "?" - that's a real fidelity
+        // gap, not a cosmetic one. Best-effort throughout: any surprise shape falls back to the
+        // plain, un-annotated type name rather than throwing.
+        private static string FormatMemberTypeName(TypeSig sig, IHasCustomAttribute nullableOwner, TypeDef declaringType,
+            MethodDef contextMethod, IList<GenericParam> typeGenerics, IList<GenericParam> methodGenerics)
+        {
+            try
+            {
+                var contextDefault = GetNullableContextDefault(contextMethod, declaringType);
+                var flagAt = BuildNullableFlagProvider(nullableOwner, contextDefault);
+                var idx = 0;
+                return FormatWithNullability(sig, flagAt, ref idx, typeGenerics, methodGenerics);
+            }
+            catch
+            {
+                return FormatTypeName(sig, typeGenerics, methodGenerics);
+            }
+        }
+
+        private static byte GetNullableContextDefault(MethodDef method, TypeDef type)
+        {
+            var methodAttr = method?.CustomAttributes?.FirstOrDefault(a => a.TypeFullName == "System.Runtime.CompilerServices.NullableContextAttribute");
+            if (TryReadByteArg(methodAttr, out var mb))
+                return mb;
+
+            for (var t = type; t != null; t = t.DeclaringType)
+            {
+                var typeAttr = t.CustomAttributes?.FirstOrDefault(a => a.TypeFullName == "System.Runtime.CompilerServices.NullableContextAttribute");
+                if (TryReadByteArg(typeAttr, out var tb))
+                    return tb;
+            }
+
+            var module = type?.Module;
+            var moduleAttr = module?.CustomAttributes?.FirstOrDefault(a => a.TypeFullName == "System.Runtime.CompilerServices.NullableContextAttribute");
+            if (TryReadByteArg(moduleAttr, out var modb))
+                return modb;
+
+            var asmAttr = module?.Assembly?.CustomAttributes?.FirstOrDefault(a => a.TypeFullName == "System.Runtime.CompilerServices.NullableContextAttribute");
+            if (TryReadByteArg(asmAttr, out var ab))
+                return ab;
+
+            return 0; // "oblivious" - no annotation info available, so print no '?' (same as before this feature existed)
+        }
+
+        private static bool TryReadByteArg(CustomAttribute attr, out byte value)
+        {
+            value = 0;
+            if (attr == null || attr.ConstructorArguments.Count == 0)
+                return false;
+            if (attr.ConstructorArguments[0].Value is byte b)
+            {
+                value = b;
+                return true;
+            }
+            return false;
+        }
+
+        // Returns a function mapping "slot index" -> nullable flag (1 = not annotated/non-null,
+        // 2 = annotated nullable, 0 = oblivious). A NullableAttribute can carry a single byte
+        // (applies to every slot - the compiler's shorthand for "all one value") or a byte[]
+        // (one entry per reference-type-capable slot in the signature, pre-order). No attribute
+        // at all means every slot uses the surrounding scope's context default.
+        private static Func<int, byte> BuildNullableFlagProvider(IHasCustomAttribute owner, byte contextDefault)
+        {
+            var attr = owner?.CustomAttributes?.FirstOrDefault(a => a.TypeFullName == "System.Runtime.CompilerServices.NullableAttribute");
+            if (attr == null || attr.ConstructorArguments.Count == 0)
+                return _ => contextDefault;
+
+            var value = attr.ConstructorArguments[0].Value;
+            if (value is byte singleByte)
+                return _ => singleByte;
+
+            if (value is CAArgument[] arr)
+            {
+                var bytes = arr.Select(a => a.Value is byte b ? b : contextDefault).ToArray();
+                return i => i < bytes.Length ? bytes[i] : contextDefault;
+            }
+
+            return _ => contextDefault;
+        }
+
+        private static string FormatWithNullability(TypeSig sig, Func<int, byte> flagAt, ref int idx,
+            IList<GenericParam> typeGenerics, IList<GenericParam> methodGenerics)
+        {
+            if (sig == null)
+                return "object";
+
+            if (sig is ByRefSig byRefSig)
+                return FormatWithNullability(byRefSig.Next, flagAt, ref idx, typeGenerics, methodGenerics);
+
+            // Nullable<T> (int?, DateTime? etc.) is a structural value-type wrapper, not part of
+            // the reference-type-nullability encoding at all - handle it before touching flags.
+            if (sig is GenericInstSig nullableGis && nullableGis.GenericType.TypeDefOrRef.FullName == "System.Nullable`1")
+            {
+                var inner = FormatWithNullability(nullableGis.GenericArguments[0], flagAt, ref idx, typeGenerics, methodGenerics);
+                return inner + "?";
+            }
+
+            // Value types and pointers never get a nullable-annotation flag (there's nothing for
+            // it to encode - a struct can't be a null reference). Everything else - classes,
+            // strings, arrays, delegates, unconstrained generic params - consumes one flag here,
+            // for itself, before we recurse into any generic arguments/element types.
+            var needsFlag = !(IsValueTypeSig(sig, typeGenerics, methodGenerics) || sig is PtrSig);
+            var thisFlag = needsFlag ? flagAt(idx++) : (byte)0;
+            string name;
+            switch (sig)
+            {
+                case GenericInstSig gis:
+                    var idx1 = idx;
+                    var args = string.Join(", ", gis.GenericArguments.Select(a => FormatWithNullability(a, flagAt,ref idx1, typeGenerics, methodGenerics)));
+                    var baseName = gis.GenericType.TypeDefOrRef.Name.String;
+                    var tickIndex = baseName.IndexOf('`');
+                    if (tickIndex > 0)
+                        baseName = baseName[..tickIndex];
+                    name = $"{baseName}<{args}>";
+                    break;
+
+                case SZArraySig arr:
+                    name = FormatWithNullability(arr.Next, flagAt, ref idx, typeGenerics, methodGenerics) + "[]";
+                    break;
+
+                case ArraySig arrM:
+                    name = FormatWithNullability(arrM.Next, flagAt, ref idx, typeGenerics, methodGenerics) + "[" + new string(',', (int)arrM.Rank - 1) + "]";
+                    break;
+
+                default:
+                    // Primitives, plain classes/interfaces, generic parameter names - the scalar
+                    // formatter already handles all of these correctly, we just decide on '?' here.
+                    name = FormatTypeName(sig, typeGenerics, methodGenerics);
+                    break;
+            }
+
+            return needsFlag && thisFlag == 2 ? name + "?" : name;
+        }
+
+        private static bool IsValueTypeSig(TypeSig sig, IList<GenericParam> typeGenerics, IList<GenericParam> methodGenerics)
+        {
+            switch (sig)
+            {
+                case GenericVar gv:
+                    var gp = typeGenerics != null && gv.Number < typeGenerics.Count ? typeGenerics[(int)gv.Number] : null;
+                    return gp != null && (gp.Flags & GenericParamAttributes.NotNullableValueTypeConstraint) != 0;
+
+                case GenericMVar gmv:
+                    var mgp = methodGenerics != null && gmv.Number < methodGenerics.Count ? methodGenerics[(int)gmv.Number] : null;
+                    return mgp != null && (mgp.Flags & GenericParamAttributes.NotNullableValueTypeConstraint) != 0;
+
+                default:
+                    return sig.IsValueType;
+            }
+        }
+
+        // Generic type parameters plus a "where" clause string built separately, since C# wants
+        // `class Foo<T> where T : IThing` - the constraints trail the base-list, not the name.
+        private static string FormatGenericParams(IList<GenericParam> gps, out string whereClauses)
+        {
+            if (gps == null || gps.Count == 0)
+            {
+                whereClauses = "";
+                return "";
+            }
+
+            var wheres = new List<string>();
+            foreach (var g in gps)
+            {
+                var constraints = new List<string>();
+                if ((g.Flags & GenericParamAttributes.ReferenceTypeConstraint) != 0)
+                    constraints.Add("class");
+                if ((g.Flags & GenericParamAttributes.NotNullableValueTypeConstraint) != 0)
+                    constraints.Add("struct");
+
+                foreach (var c in g.GenericParamConstraints)
+                {
+                    var name = FormatTypeName(c.Constraint.ToTypeSig());
+                    if (name != "object")
+                        constraints.Add(name);
+                }
+
+                if ((g.Flags & GenericParamAttributes.DefaultConstructorConstraint) != 0 &&
+                    (g.Flags & GenericParamAttributes.NotNullableValueTypeConstraint) == 0)
+                {
+                    constraints.Add("new()");
+                }
+
+                if (constraints.Count > 0)
+                    wheres.Add($"where {g.Name} : {string.Join(", ", constraints)}");
+            }
+
+            whereClauses = wheres.Count > 0 ? " " + string.Join(" ", wheres) : "";
+            return $"<{string.Join(", ", gps.Select(g => g.Name.String))}>";
+        }
+
+        private static string FormatParameters(MethodDef method, TypeDef declaringType, MethodDef contextMethod,
+            IList<GenericParam> typeGenerics, IList<GenericParam> methodGenerics) =>
+            string.Join(", ", method.Parameters
+                .Where(p => !p.IsHiddenThisParameter && !p.IsReturnTypeParameter)
+                .Select(p => FormatParameter(p, declaringType, contextMethod, typeGenerics, methodGenerics)));
+
+        private static string FormatParameter(Parameter p, TypeDef declaringType, MethodDef contextMethod,
+            IList<GenericParam> typeGenerics, IList<GenericParam> methodGenerics)
+        {
+            var sb = new StringBuilder();
+
+            var isParamArray = p.ParamDef?.CustomAttributes?.Any(a => a.TypeFullName == "ParamArrayAttribute") == true;
+            if (isParamArray)
+                sb.Append("params ");
+
+            var typeSig = p.Type;
+            if (typeSig is ByRefSig byRefSig)
+            {
+                typeSig = byRefSig.Next;
+                if (p.ParamDef != null && p.ParamDef.IsOut && !p.ParamDef.IsIn)
+                    sb.Append("out ");
+                else if (p.ParamDef != null && p.ParamDef.IsIn && !p.ParamDef.IsOut)
+                    sb.Append("in ");
+                else
+                    sb.Append("ref ");
+            }
+
+            sb.Append(FormatMemberTypeName(typeSig, p.ParamDef, declaringType, contextMethod, typeGenerics, methodGenerics))
+              .Append(' ').Append(p.Name);
+
+            if (p.ParamDef is { IsOptional: true })
+            {
+                sb.Append(" = ").Append(p.ParamDef.Constant != null
+                    ? FormatConstant(p.ParamDef.Constant.Value)
+                    : "default");
+            }
+
+            return sb.ToString();
+        }
+
+        // Access surface we consider worth showing in a stub: public, protected, and protected
+        // internal (all reachable from an external derived type). Internal-only and private
+        // members are omitted, same as before - null return means "skip this member".
+        private static string FormatAccessibility(bool isPublic, bool isFamily, bool isFamilyOrAssembly, bool isFamilyAndAssembly)
+        {
+            if (isPublic)
+                return "public";
+            if (isFamilyOrAssembly)
+                return "protected internal";
+            if (isFamily)
+                return "protected";
+            if (isFamilyAndAssembly)
+                return "protected";
+            return null;
+        }
+
+        private static string FormatTypeName(ITypeDefOrRef type, IList<GenericParam> typeGenerics = null, IList<GenericParam> methodGenerics = null) =>
+            FormatTypeName(type.ToTypeSig(), typeGenerics, methodGenerics);
+
+        private static string FormatTypeName(TypeSig sig, IList<GenericParam> typeGenerics = null, IList<GenericParam> methodGenerics = null)
         {
             if (sig == null)
                 return "object";
@@ -179,7 +783,7 @@ namespace AvaloniaVS.Shared.Navigation
             switch (sig)
             {
                 case GenericInstSig gis:
-                    var args = string.Join(", ", gis.GenericArguments.Select(FormatTypeName));
+                    var args = string.Join(", ", gis.GenericArguments.Select(a => FormatTypeName(a, typeGenerics, methodGenerics)));
                     var baseName = gis.GenericType.TypeDefOrRef.Name.String;
                     var tickIndex = baseName.IndexOf('`');
                     if (tickIndex > 0)
@@ -187,17 +791,44 @@ namespace AvaloniaVS.Shared.Navigation
                     return $"{baseName}<{args}>";
 
                 case SZArraySig arr:
-                    return FormatTypeName(arr.Next) + "[]";
+                    return FormatTypeName(arr.Next, typeGenerics, methodGenerics) + "[]";
+
+                case ArraySig arr:
+                    return FormatTypeName(arr.Next, typeGenerics, methodGenerics) + "[" + new string(',', (int)arr.Rank - 1) + "]";
+
+                case ByRefSig byRefSig:
+                    return FormatTypeName(byRefSig.Next, typeGenerics, methodGenerics);
+
+                case PtrSig ptrSig:
+                    return FormatTypeName(ptrSig.Next, typeGenerics, methodGenerics) + "*";
+
+                case GenericVar genericVar:
+                    return typeGenerics != null && genericVar.Number < typeGenerics.Count
+                        ? typeGenerics[(int)genericVar.Number].Name.String
+                        : "T" + genericVar.Number;
+
+                case GenericMVar genericMVar:
+                    return methodGenerics != null && genericMVar.Number < methodGenerics.Count
+                        ? methodGenerics[(int)genericMVar.Number].Name.String
+                        : "T" + genericMVar.Number;
 
                 default:
                     return sig.TypeName switch
                     {
                         "Int32" => "int",
                         "Int64" => "long",
+                        "Int16" => "short",
+                        "Byte" => "byte",
+                        "SByte" => "sbyte",
+                        "UInt32" => "uint",
+                        "UInt64" => "ulong",
+                        "UInt16" => "ushort",
                         "Boolean" => "bool",
                         "String" => "string",
                         "Double" => "double",
                         "Single" => "float",
+                        "Decimal" => "decimal",
+                        "Char" => "char",
                         "Object" => "object",
                         "Void" => "void",
                         _ => sig.TypeName

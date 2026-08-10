@@ -16,8 +16,7 @@
             <Grid
                 x:Name="previewGrid"
                 HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                UseLayoutRounding="True">
+                VerticalAlignment="Center">
                 <Border BorderBrush="Black" BorderThickness="2">
                     <Border.Effect>
                         <BlurEffect KernelType="Gaussian" Radius="8" />
@@ -25,6 +24,7 @@
                 </Border>
                 <Border>
                     <Image
+                      RenderOptions.BitmapScalingMode="HighQuality"
                         Name="preview"
                         Width="100"
                         Height="100"

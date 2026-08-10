@@ -491,10 +491,11 @@ namespace AvaloniaVS.Views
                 bitmap = Process.Bitmap;
             }
 
-            if (bitmap is not null && zoomLevel.StartsWith("Fit All", StringComparison.OrdinalIgnoreCase) == true)
+            if (bitmap is not null && zoomLevel.StartsWith("Fit All", StringComparison.OrdinalIgnoreCase) 
+                && previewer.TryGetViewportSize(10, out var viewportSize))
             {
                 var processScaling = Process.Scaling;
-                var viewportSize = previewer.GetViewportSize(10);
+                //var viewportSize = previewer.GetViewportSize(10);
                 double x = viewportSize.Width / (bitmap.Width / processScaling);
                 double y = viewportSize.Height / (bitmap.Height / processScaling);
 
@@ -502,11 +503,12 @@ namespace AvaloniaVS.Views
 
                 return true;
             }
-            else if (bitmap is not null && zoomLevel.StartsWith("Fit to Width", StringComparison.OrdinalIgnoreCase) == true)
+            else if (bitmap is not null && zoomLevel.StartsWith("Fit to Width", StringComparison.OrdinalIgnoreCase) 
+                && previewer.TryGetViewportSize(10, out var viewportSizew))
             {
                 var processScaling = Process.Scaling;
-                var viewportSize = previewer.GetViewportSize(10);
-                double x = viewportSize.Width / (bitmap.Width / processScaling);
+                //var viewportSize = previewer.GetViewportSize(10);
+                double x = viewportSizew.Width / (bitmap.Width / processScaling);
                 //double y = viewportSize.Height / (bitmap.Height / processScaling);
 
                 scaling = Math.Round(x, 2, MidpointRounding.ToEven);
@@ -546,7 +548,7 @@ namespace AvaloniaVS.Views
                     {
                         await Process.SetScalingAsync(VisualTreeHelper.GetDpi(this).DpiScaleX * _scaling);
                         await Process.StartAsync(assemblyPath, executablePath, hostAppPath, (bool)isNetFx);
-                        await Process.UpdateXamlAsync(await ReadAllTextAsync(_xamlPath));
+                        await Process.UpdateXamlAsync(await ReadAllTextAsync(_xamlPath),_xamlPath);
                     }
                 }
                 catch (ApplicationException ex)
@@ -854,10 +856,7 @@ namespace AvaloniaVS.Views
             }
             else
             {
-                if (SplitOrientation == Orientation.Horizontal)
-                    HorizontalGrid();
-                else
-                    VerticalGrid();
+                HorizontalGrid();
                 previewRow.Height = View == AvaloniaDesignerView.Design ? s_oneStar : s_zeroStar;
                 codeRow.Height = View == AvaloniaDesignerView.Source ? s_oneStar : s_zeroStar;
                 splitter.Visibility = Visibility.Collapsed;
@@ -871,7 +870,7 @@ namespace AvaloniaVS.Views
         {
             if (Process.IsReady)
             {
-                Process.UpdateXamlAsync(xaml).FireAndForget();
+                Process.UpdateXamlAsync(xaml,_xamlPath).FireAndForget();
             }
         }
 

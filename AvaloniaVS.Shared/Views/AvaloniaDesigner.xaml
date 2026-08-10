@@ -27,7 +27,7 @@
         <conv:NotNullOrEmptyToVisibilityConverter x:Key="NotNullOrEmpty" />
     </UserControl.Resources>
 
-    <DockPanel Margin="10,0,0,0">
+    <DockPanel>
         <TextBlock
             Name="pausedMessage"
             Padding="4"
@@ -146,11 +146,11 @@
             <Control />
         </DockPanel>
 
-        <Grid x:Name="mainGrid" UseLayoutRounding="True">
+        <Grid x:Name="mainGrid">
             <Grid.RowDefinitions>
-                <RowDefinition x:Name="previewRow" MinHeight="50" />
+                <RowDefinition x:Name="previewRow" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition x:Name="codeRow" MinHeight="50" />
+                <RowDefinition x:Name="codeRow" />
             </Grid.RowDefinitions>
 
             <views:GridLines
@@ -168,9 +168,7 @@
                 Grid.Row="1"
                 Grid.Column="1"
                 Height="5"
-                Padding="10"
                 HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch"
                 Background="{DynamicResource VsBrush.PanelSeparator}" />
 
             <Decorator

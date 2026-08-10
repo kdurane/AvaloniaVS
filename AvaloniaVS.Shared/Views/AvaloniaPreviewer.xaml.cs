@@ -256,14 +256,15 @@ namespace AvaloniaVS.Views
         private static T FindParent<T>(DependencyObject child) where T : DependencyObject
         {
             //get parent item
-            var parentObject = VisualTreeHelper.GetParent(child);
+            DependencyObject parentObject = VisualTreeHelper.GetParent(child);
 
             //we've reached the end of the tree
             if (parentObject == null)
                 return null;
 
             //check if the parent matches the type we're looking for
-            if (parentObject is T parent)
+            T parent = parentObject as T;
+            if (parent != null)
                 return parent;
             else
                 return FindParent<T>(parentObject);
@@ -325,33 +326,66 @@ namespace AvaloniaVS.Views
         private ScrollBar _horizontalScroll;
         private ScrollBar _verticalScroll;
         private Size? _lastSize = default;
-        public Size GetViewportSize(int padding)
+        //public Size GetViewportSize(int padding)
+        //{
+        //    if (_lastSize is null)
+        //    {
+        //        var height = previewScroller.ActualHeight;
+        //        var width = previewScroller.ActualWidth;
+        //        if (previewScroller.ComputedHorizontalScrollBarVisibility == Visibility.Visible)
+        //        {
+        //            _horizontalScroll ??= previewScroller.FindDescendants<ScrollBar>()
+        //                    .First(b => b.Orientation == Orientation.Horizontal);
+        //            height -= _horizontalScroll.Height;
+        //        }
+        //        if (previewScroller.ComputedVerticalScrollBarVisibility == Visibility.Visible)
+        //        {
+        //            _verticalScroll ??= previewScroller.FindDescendants<ScrollBar>()
+        //                    .First(b => b.Orientation == Orientation.Vertical);
+        //            width -= _verticalScroll.Width;
+        //        }
+
+        //        _lastSize = new(width - padding * 2, height - padding * 2);
+        //    }
+        //    return _lastSize.Value;
+        //}
+
+        public bool TryGetViewportSize(int padding, out Size size)
         {
-            if (_lastSize is null)
+            if (previewScroller.ActualWidth <= 0 || previewScroller.ActualHeight <= 0)
             {
-                var height = previewScroller.ActualHeight;
-                var width = previewScroller.ActualWidth;
-                if (previewScroller.ComputedHorizontalScrollBarVisibility == Visibility.Visible)
-                {
-                    _horizontalScroll ??= previewScroller.FindDescendants<ScrollBar>()
-                            .First(b => b.Orientation == Orientation.Horizontal);
-                    height -= _horizontalScroll.Height;
-                }
-                if (previewScroller.ComputedVerticalScrollBarVisibility == Visibility.Visible)
-                {
-                    _verticalScroll ??= previewScroller.FindDescendants<ScrollBar>()
-                            .First(b => b.Orientation == Orientation.Vertical);
-                    width -= _verticalScroll.Width;
-                }
-
-                var clampedWidth = Math.Max(0, width - padding * 2);
-                var clampedHeight = Math.Max(0, height - padding * 2);
-
-                _lastSize = new(clampedWidth, clampedHeight);
+                // Pane is collapsed (e.g. Source-only view) — nothing sensible to measure.
+                // Don't cache this, just report failure so the caller skips the Fit calc.
+                size = default;
+                return false;
             }
-            return _lastSize.Value;
+
+            if (_lastSize is { } cached)
+            {
+                size = cached;
+                return true;
+            }
+
+            var height = previewScroller.ActualHeight;
+            var width = previewScroller.ActualWidth;
+            if (previewScroller.ComputedHorizontalScrollBarVisibility == Visibility.Visible)
+            {
+                _horizontalScroll ??= previewScroller.FindDescendants<ScrollBar>()
+                        .First(b => b.Orientation == Orientation.Horizontal);
+                height -= _horizontalScroll.Height;
+            }
+            if (previewScroller.ComputedVerticalScrollBarVisibility == Visibility.Visible)
+            {
+                _verticalScroll ??= previewScroller.FindDescendants<ScrollBar>()
+                        .First(b => b.Orientation == Orientation.Vertical);
+                width -= _verticalScroll.Width;
+            }
+
+            _lastSize = new(width - padding * 2, height - padding * 2);
+            size = _lastSize.Value;
+            return true;
         }
 
-        
+
     }
 }

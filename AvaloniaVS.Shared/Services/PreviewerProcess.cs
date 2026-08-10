@@ -322,7 +322,7 @@ namespace AvaloniaVS.Services
         /// </summary>
         /// <param name="xaml">The XAML.</param>
         /// <returns>A task tracking the operation.</returns>
-        public async Task UpdateXamlAsync(string xaml)
+        public async Task UpdateXamlAsync(string xaml,string xamlPath)
         {
             if (_process == null)
             {
@@ -338,6 +338,7 @@ namespace AvaloniaVS.Services
             {
                 AssemblyPath = _assemblyPath,
                 Xaml = xaml,
+                XamlFileProjectPath = xamlPath
             });
         }
 

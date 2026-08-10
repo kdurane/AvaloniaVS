@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
+using dnlib.DotNet;
 
 namespace AvaloniaVS.Shared.Services
 {
@@ -175,5 +178,109 @@ namespace AvaloniaVS.Shared.Services
 
             return null;
         }
+
+        public string TryGetMethodSummary(string declaringTypeFullName, MethodDef method)
+        {
+            if (declaringTypeFullName == null || method == null)
+            {
+                return null;
+            }
+
+            string docId;
+            try
+            {
+                docId = BuildMethodDocId(declaringTypeFullName, method);
+            }
+            catch
+            {
+                return null;
+            }
+
+            if (docId == null || !_summaries.TryGetValue(docId, out var baseSummary))
+            {
+                return null;
+            }
+
+            // Parameter/return docs are stored separately in the raw XML today (only <summary>
+            // is captured by LoadFile); the base summary is all we can surface without extending
+            // the loader to also capture <param>/<returns>. Returning it is still strictly better
+            // than nothing, and keeps this method additive rather than a rewrite of LoadFile.
+            return baseSummary;
+        }
+
+        private static string BuildMethodDocId(string declaringTypeFullName, MethodDef method)
+        {
+            var sb = new StringBuilder("M:");
+            sb.Append(declaringTypeFullName.Replace('/', '.')); // nested types use '/' in dnlib's FullName in some cases
+
+            sb.Append('.');
+            sb.Append(method.IsConstructor ? (method.IsStatic ? "#cctor" : "#ctor") : method.Name.String);
+
+            var methodGenericCount = method.GenericParameters.Count;
+            if (methodGenericCount > 0)
+            {
+                sb.Append("``").Append(methodGenericCount);
+            }
+
+            var parameters = method.Parameters
+                .Where(p => !p.IsHiddenThisParameter && !p.IsReturnTypeParameter)
+                .ToList();
+
+            if (parameters.Count > 0)
+            {
+                sb.Append('(');
+                sb.Append(string.Join(",", parameters.Select(p => BuildDocParamName(p.Type))));
+                sb.Append(')');
+            }
+
+            if (method.Name == "op_Implicit" || method.Name == "op_Explicit")
+            {
+                sb.Append('~').Append(BuildDocParamName(method.ReturnType));
+            }
+
+            return sb.ToString();
+        }
+
+        // Mirrors the (simplified) rules from the C# language spec Annex for doc-ID param types:
+        // generic type params -> `0, `1..., generic method params -> ``0, ``1...,
+        // arrays -> [], by-ref -> @ suffix, generic instantiations -> {Arg1,Arg2}.
+        private static string BuildDocParamName(TypeSig sig)
+        {
+            switch (sig)
+            {
+                case null:
+                    return "System.Object";
+
+                case ByRefSig byRefSig:
+                    return BuildDocParamName(byRefSig.Next) + "@";
+
+                case SZArraySig arr:
+                    return BuildDocParamName(arr.Next) + "[]";
+
+                case ArraySig arr:
+                    return BuildDocParamName(arr.Next) + "[" + new string(',', (int)arr.Rank - 1) + "]";
+
+                case PtrSig ptrSig:
+                    return BuildDocParamName(ptrSig.Next) + "*";
+
+                case GenericVar genericVar:
+                    return "`" + genericVar.Number;
+
+                case GenericMVar genericMVar:
+                    return "``" + genericMVar.Number;
+
+                case GenericInstSig gis:
+                    var baseName = gis.GenericType.TypeDefOrRef.FullName;
+                    var tickIndex = baseName.IndexOf('`');
+                    if (tickIndex > 0)
+                        baseName = baseName[..tickIndex];
+                    var args = string.Join(",", gis.GenericArguments.Select(BuildDocParamName));
+                    return $"{baseName}{{{args}}}";
+
+                default:
+                    return sig.FullName;
+            }
+        }
+
     }
 }
