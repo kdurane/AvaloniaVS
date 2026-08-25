@@ -89,9 +89,71 @@ internal class EditorPane : WindowPane,
         return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED;
     }
 
+    private const int WM_KEYDOWN = 0x0100;
+    private const int VK_OEM_2 = 0xBF; // '/' key
+
+    /// <summary>
+    /// Determines whether the current selection is already wrapped in an XML comment, so
+    /// Ctrl+/ knows whether to comment or uncomment. If there's no selection, scans outward
+    /// from the caret through the whole document for the nearest enclosing &lt;!-- --&gt;
+    /// pair, matching the same delimiter-search behaviour VS's own Edit.UncommentSelection
+    /// already uses when invoked with no selection.
+    /// </summary>
+    private bool IsCurrentSelectionCommented()
+    {
+        var textView = _textEditorHost.WpfTextViewHost?.TextView;
+        if (textView == null)
+            return false;
+
+        if (!textView.Selection.IsEmpty)
+        {
+            var selected = textView.Selection.StreamSelectionSpan.GetText().Trim();
+            return selected.StartsWith("<!--", StringComparison.Ordinal)
+                && selected.EndsWith("-->", StringComparison.Ordinal);
+        }
+
+        return IsCaretInsideComment(textView.Caret.Position.BufferPosition);
+    }
+
+    private static bool IsCaretInsideComment(Microsoft.VisualStudio.Text.SnapshotPoint caretPosition)
+    {
+        var snapshot = caretPosition.Snapshot;
+        var text = snapshot.GetText();
+        var pos = caretPosition.Position;
+
+        if (text.Length == 0)
+            return false;
+
+        // Find the nearest "<!--" at or before the caret.
+        var searchFrom = Math.Min(pos, text.Length - 1);
+        var commentStart = text.LastIndexOf("<!--", searchFrom, StringComparison.Ordinal);
+        if (commentStart < 0)
+            return false;
+
+        // If a "-->" closes that comment before the caret, we've already walked past it -
+        // the caret isn't actually inside it.
+        var commentEnd = text.IndexOf("-->", commentStart + 4, StringComparison.Ordinal);
+        return commentEnd < 0 || commentEnd + 3 > pos;
+    }
+
+
+
     protected override bool PreProcessMessage(ref System.Windows.Forms.Message m)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
+
+        if (m.Msg == WM_KEYDOWN && m.WParam.ToInt32() == VK_OEM_2 &&
+    System.Windows.Forms.Control.ModifierKeys.HasFlag(System.Windows.Forms.Keys.Control))
+        {
+            var dte = GetService(typeof(SDTE)) as DTE;
+            var commentUncomment = IsCurrentSelectionCommented() ? "Edit.UncommentSelection" : "Edit.CommentSelection";
+
+            if (dte?.Commands.Item(commentUncomment) is { IsAvailable: true })
+            {
+                dte.ExecuteCommand(commentUncomment);
+                return true;
+            }
+        }
 
         if (m.Msg >= WM_KEYFIRST && m.Msg <= WM_KEYLAST)
         {
@@ -117,6 +179,8 @@ internal class EditorPane : WindowPane,
         }
 
         return base.PreProcessMessage(ref m);
+
+
     }
 
     protected override void Dispose(bool disposing)
